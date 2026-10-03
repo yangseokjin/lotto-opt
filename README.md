@@ -15,6 +15,7 @@ python3 cli.py compare --config config/as_is.yaml --config config/to_be.yaml --s
 python3 cli.py run --config config/to_be.yaml --effort 2     # 탐색량 두 배 (보통 1이면 충분)
 python3 cli.py run --config config/to_be.yaml --set targets.odd_even=spec   # 설정 파일을 고치지 않고 항목 바꾸기
 ```
+- 당첨 확인: `python3 cli.py check out/to_be_30sets_seed7.json` (데이터의 최신 회차와 비교), `--draw 1244`(회차 지정), `--numbers 1,2,3,4,5,6 --bonus 7`(직접 입력), `--json`(프로그램에서 읽을 JSON). 세트별 일치 번호와 등수(1등 6개, 2등 5개+보너스, 3등 5개, 4등 4개, 5등 3개), 등수별 개수, 최고 등수를 보여 줍니다.
 - 결과는 `out/<프리셋>_<세트수>sets_seed<시드>.md`(리포트)와 `.json` 에 저장됩니다. 리포트 맨 위에 같은 결과를 다시 만드는 명령이 적혀 있습니다.
 - 종료 코드 1은 독립 검증에서 규칙 위반이 나왔다는 뜻입니다.
 - 당첨번호는 동행복권 공식 API → 공개 미러 → `data/draws.json` 캐시 순서로 가져옵니다. 최신 회차를 받지 못하면 캐시를 쓰고 리포트에 그렇게 적습니다 (`--source`, `--data`).
@@ -57,6 +58,7 @@ python3 cli.py run --config config/to_be.yaml --set targets.odd_even=spec   # �
 | `lotto_opt/constraints/global_level.py` | 전역 제약: 출현 횟수, 커버리지, 평균회귀 강제, 연속수 0쌍 비율, 분포 밴드, 교집합 |
 | `lotto_opt/objective.py` | 사전식 단계: 분포 오차 → 교집합 → 출현 분산 (CP-SAT 식, 같은 값의 파이썬 계산, 하한) |
 | `lotto_opt/pool.py` | 유효 세트 후보 풀과 출발 포트폴리오 |
+| `lotto_opt/check.py` | 당첨 확인: 세트별 일치 번호·등수, 등수별 요약 |
 | `lotto_opt/search.py` | 빠른 지역 탐색 (번호 바꾸기·맞바꾸기) |
 | `lotto_opt/solver.py` | 단계별 이웃 탐색(LNS), `relax` 목록 자동 완화 |
 | `lotto_opt/validate.py` | 솔버와 독립된 순수 파이썬 재검사 |

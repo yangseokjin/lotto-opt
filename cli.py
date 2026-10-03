@@ -1,6 +1,7 @@
 """사용법:
   python3 cli.py run --config config/to_be.yaml [--sets 30|50] [--seed N] [--set 점.경로=값] [--effort 1]
   python3 cli.py compare --config config/as_is.yaml --config config/to_be.yaml [--sets 50] [--seed N]
+  python3 cli.py check out/to_be_30sets_seed7.json [--draw 1243 | --numbers 1,2,3,4,5,6 --bonus 7] [--json]
 
 --seed 를 주지 않으면 실행마다 새 시드를 뽑아 다른 조합을 만들고, 리포트에 그 시드를 적어 둔다.
 같은 시드·같은 설정·같은 데이터면 언제 다시 돌려도 같은 결과가 나온다.
@@ -14,7 +15,7 @@ import time
 
 import yaml
 
-from lotto_opt import config, data, report, solver, validate
+from lotto_opt import check, config, data, report, solver, validate
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -83,6 +84,37 @@ def run_one(path, cfg, note, args, quiet=False):
             "analysis": a, "path": base + ".md", "seed": seed, "seconds": seconds}
 
 
+def run_check(args):
+    """저장된 포트폴리오를 회차(또는 직접 입력한 번호)와 맞춰 본다."""
+    try:
+        sets, meta = check.load_sets(args.portfolio)
+    except (OSError, ValueError, KeyError) as e:
+        sys.exit(f"포트폴리오 파일을 읽지 못했습니다: {e}")
+    draw = None
+    if args.numbers:
+        if args.bonus is None:
+            sys.exit("--numbers 를 쓸 때는 --bonus 도 함께 주세요.")
+        numbers, bonus = [n for n in args.numbers.replace(",", " ").split()], args.bonus
+    else:
+        if args.bonus is not None:
+            sys.exit("--bonus 는 --numbers 와 함께 쓸 때만 씁니다.")
+        draws, _ = data.load_draws(args.data, args.source or "auto")
+        if not draws:
+            sys.exit("회차 데이터가 없습니다. --numbers/--bonus 로 직접 입력해 주세요.")
+        no = args.draw if args.draw is not None else draws[-1]["draw_no"]
+        draw = next((d for d in draws if d["draw_no"] == no), None)
+        if draw is None:
+            sys.exit(f"제{no}회 당첨번호가 데이터에 없습니다 (제{draws[0]['draw_no']}~{draws[-1]['draw_no']}회). "
+                     "--numbers/--bonus 로 직접 입력해 주세요.")
+        numbers, bonus = draw["numbers"], draw["bonus"]
+    try:
+        res = check.check(sets, numbers, bonus)
+    except ValueError as e:
+        sys.exit(str(e))
+    print(check.to_json(res, draw, meta) if args.json else check.render(res, draw, meta))
+    return 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="lotto-opt")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -97,7 +129,18 @@ def main(argv=None):
                        help="탐색량 배수 (2 = 두 배 오래, 더 좋은 해를 찾을 수도 있음)")
         r.add_argument("--out", default=os.path.join(ROOT, "out"))
         r.add_argument("--data", default=os.path.join(ROOT, "data", "draws.json"), help="회차 데이터 캐시 파일")
+    c = sub.add_parser("check", help="저장된 포트폴리오(JSON)의 당첨 확인")
+    c.add_argument("portfolio", help="run 이 저장한 out/*.json 파일")
+    c.add_argument("--draw", type=int, help="확인할 회차 (생략하면 데이터의 최신 회차)")
+    c.add_argument("--numbers", help="당첨번호 6개 직접 입력 (예: 1,2,3,4,5,6)")
+    c.add_argument("--bonus", type=int, help="보너스 번호 (--numbers 와 함께)")
+    c.add_argument("--json", action="store_true", help="결과를 JSON으로 출력 (다른 프로그램에서 읽을 때)")
+    c.add_argument("--source", help="auto | official | mirror | cache")
+    c.add_argument("--data", default=os.path.join(ROOT, "data", "draws.json"), help="회차 데이터 캐시 파일")
     args = p.parse_args(argv)
+
+    if args.cmd == "check":
+        return run_check(args)
 
     if args.cmd == "run":
         cfg, note = prepare(args.config, args)
