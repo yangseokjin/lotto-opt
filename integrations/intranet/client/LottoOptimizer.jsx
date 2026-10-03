@@ -1,11 +1,13 @@
 // 로또 최적화 페이지 (시스템 관리자 전용). 서버 쪽은 server/lottoRouter.js (/api/lotto).
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '../api';
 
 const PRESET_LABEL = { to_be: '개선안', as_is: '원안' };
 const ODDS_NOTE =
   '모든 조합의 1등 확률은 1/8,145,060으로 같습니다. 이 페이지는 여러 세트에 번호를 고르게 나눠 담을 뿐, 당첨 확률을 높이지 않습니다.';
 const RUN_TIMEOUT_MS = 10 * 60 * 1000; // 계산이 20~60초 걸려서 기본 요청 시간 제한을 쓰지 않는다
+const CHECK_TIMEOUT_MS = 90 * 1000; // 당첨번호를 인터넷에서 받아 오느라 몇 초 걸릴 수 있다
+const RANK_LABEL = { 1: '1등', 2: '2등', 3: '3등', 4: '4등', 5: '5등' };
 
 // 동행복권 공 색깔
 function ballColor(n) {
@@ -114,11 +116,191 @@ function NumberGroup({ title, nums, highlight }) {
   );
 }
 
-function RunResult({ run, onCopied }) {
+function parseNumbers(text) {
+  return text
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .map(Number);
+}
+
+function CheckResult({ check, drawTo }) {
+  const sm = check.summary;
+  const draw = check.draw;
+  const win = new Set(check.numbers);
+  const inSample = draw && drawTo && draw.draw_no <= drawTo;
+  return (
+    <div className="lo-check-result">
+      <div className="lo-check-draw">
+        <span className="lo-result-title">{draw ? `제${draw.draw_no}회 (${draw.date})` : '직접 입력한 번호'}</span>
+        <div className="lo-balls">
+          {check.numbers.map((n) => (
+            <Ball key={n} n={n} />
+          ))}
+          <span className="lo-plus">+</span>
+          <Ball n={check.bonus} />
+        </div>
+      </div>
+      {inSample ? (
+        <div className="lo-muted">
+          참고: 이 결과는 제{drawTo}회까지의 당첨번호로 만들어서, 제{draw.draw_no}회는 이미 계산에 들어간 회차예요.
+        </div>
+      ) : null}
+      <div className="lo-rank-row">
+        <span className={sm.best_rank ? 'lo-rank-chip lo-rank-best' : 'lo-rank-chip'}>
+          최고 등수 {sm.best_rank ? RANK_LABEL[sm.best_rank] : '낙첨'}
+        </span>
+        {[1, 2, 3, 4, 5].map((k) => (
+          <span key={k} className={sm.by_rank[String(k)] ? 'lo-rank-chip lo-rank-hit' : 'lo-rank-chip'}>
+            {RANK_LABEL[k]} {sm.by_rank[String(k)]}
+          </span>
+        ))}
+        <span className="lo-rank-chip">낙첨 {sm.sets - sm.winning_sets}</span>
+      </div>
+      <div className="lo-muted">
+        일치 개수별:{' '}
+        {Object.entries(sm.by_match_count)
+          .filter(([, v]) => v)
+          .map(([k, v]) => `${k}개 ${v}세트`)
+          .join(' · ')}
+      </div>
+      <div className="lo-table-wrap">
+        <table className="lo-table">
+          <thead>
+            <tr>
+              <th>세트</th>
+              <th>번호 (색 = 맞은 번호)</th>
+              <th>일치</th>
+              <th>등수</th>
+            </tr>
+          </thead>
+          <tbody>
+            {check.results.map((r) => (
+              <tr key={r.set} className={r.rank ? 'lo-win' : undefined}>
+                <td className="lo-num">{pad(r.set)}</td>
+                <td>
+                  <div className="lo-balls lo-nowrap">
+                    {r.numbers.map((n) => (
+                      <span key={n} className={win.has(n) ? undefined : 'lo-miss'}>
+                        <Ball n={n} />
+                      </span>
+                    ))}
+                  </div>
+                </td>
+                <td className="lo-num">
+                  {r.match_count}개{r.bonus_hit ? '+보너스' : ''}
+                </td>
+                <td>{r.rank ? <b>{RANK_LABEL[r.rank]}</b> : <span className="lo-muted">낙첨</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function CheckPanel({ run, request }) {
+  const [draw, setDraw] = useState('');
+  const [manual, setManual] = useState(false);
+  const [numbers, setNumbers] = useState('');
+  const [bonus, setBonus] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [check, setCheck] = useState(null);
+  const box = useRef(null);
+
+  const doCheck = async (e) => {
+    if (e) e.preventDefault();
+    setError('');
+    let body = {};
+    if (manual) {
+      body = { numbers: parseNumbers(numbers), bonus: Number(bonus) };
+    } else if (draw.trim()) {
+      body = { draw: Number(draw.trim()) };
+    }
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/lotto/runs/${run.id}/check`, body, { timeout: CHECK_TIMEOUT_MS });
+      setCheck(data.check);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // "지난 결과"의 당첨 확인 버튼을 누르면 최신 회차로 바로 확인한다
+  useEffect(() => {
+    if (!request) return;
+    if (box.current && box.current.scrollIntoView) box.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    doCheck();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request]);
+
+  return (
+    <div className="lo-check" ref={box}>
+      <div className="lo-section-title">당첨 확인</div>
+      <form className="lo-form" onSubmit={doCheck}>
+        {manual ? (
+          <>
+            <label>
+              당첨번호 6개
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="예: 1 7 13 19 25 31"
+                value={numbers}
+                onChange={(e) => setNumbers(e.target.value)}
+                disabled={busy}
+              />
+            </label>
+            <label>
+              보너스
+              <input
+                type="number"
+                min="1"
+                max="45"
+                className="lo-short"
+                value={bonus}
+                onChange={(e) => setBonus(e.target.value)}
+                disabled={busy}
+              />
+            </label>
+          </>
+        ) : (
+          <label>
+            회차 (선택)
+            <input
+              type="number"
+              min="1"
+              step="1"
+              inputMode="numeric"
+              placeholder="비우면 최신 회차"
+              value={draw}
+              onChange={(e) => setDraw(e.target.value)}
+              disabled={busy}
+            />
+          </label>
+        )}
+        <button type="submit" className="lo-btn lo-btn-primary" disabled={busy}>
+          {busy ? '확인 중…' : '당첨 확인'}
+        </button>
+        <button type="button" className="lo-link" onClick={() => setManual(!manual)} disabled={busy}>
+          {manual ? '회차로 확인하기' : '번호 직접 입력하기'}
+        </button>
+      </form>
+      {error ? <div className="lo-error">{error}</div> : null}
+      {check ? <CheckResult check={check} drawTo={run.drawTo} /> : null}
+    </div>
+  );
+}
+
+function RunResult({ run, onCopied, checkRequest }) {
   const r = run.result;
   const sm = r.summary || {};
   const cg = sm.coverage_groups || {};
   const top = r.hot.slice(0, 5);
+  const [localRequest, setLocalRequest] = useState(0);
   const copyNumbers = async () => {
     const text = r.sets.map((s, i) => `${pad(i + 1)}세트  ${s.map(pad).join(' ')}`).join('\n');
     try {
@@ -151,8 +333,13 @@ function RunResult({ run, onCopied }) {
           <button type="button" className="lo-btn" onClick={() => downloadCsv(run)}>
             엑셀(CSV) 저장
           </button>
+          <button type="button" className="lo-btn" onClick={() => setLocalRequest(Date.now())}>
+            당첨 확인
+          </button>
         </div>
       </div>
+
+      <CheckPanel run={run} request={Math.max(localRequest, checkRequest || 0)} />
 
       <div className="lo-groups">
         <NumberGroup title="Hot (테두리 = 최상위 5)" nums={r.hot} highlight={top} />
@@ -239,6 +426,7 @@ export default function LottoOptimizer() {
   const [notice, setNotice] = useState('');
   const [current, setCurrent] = useState(null);
   const [runs, setRuns] = useState([]);
+  const [checkRequest, setCheckRequest] = useState(0);
 
   const loadRuns = async () => {
     const { data } = await api.get('/lotto/runs');
@@ -246,11 +434,12 @@ export default function LottoOptimizer() {
     return data.runs || [];
   };
 
-  const openRun = async (id) => {
+  const openRun = async (id, withCheck = false) => {
     setError('');
     try {
       const { data } = await api.get(`/lotto/runs/${id}`);
       setCurrent(data.run);
+      setCheckRequest(withCheck ? Date.now() : 0);
     } catch (e) {
       setError(errorText(e));
     }
@@ -297,6 +486,7 @@ export default function LottoOptimizer() {
       if (seed.trim()) body.seed = Number(seed.trim());
       const { data } = await api.post('/lotto/run', body, { timeout: RUN_TIMEOUT_MS });
       setCurrent(data.run);
+      setCheckRequest(0);
       await loadRuns();
     } catch (err) {
       setError(errorText(err));
@@ -368,7 +558,7 @@ export default function LottoOptimizer() {
       {error ? <div className="lo-error">{error}</div> : null}
       {notice ? <div className="lo-notice">{notice}</div> : null}
 
-      {current ? <RunResult run={current} onCopied={setNotice} /> : null}
+      {current ? <RunResult key={current.id} run={current} onCopied={setNotice} checkRequest={checkRequest} /> : null}
 
       <div className="lo-card">
         <div className="lo-section-title">지난 결과</div>
@@ -401,7 +591,10 @@ export default function LottoOptimizer() {
                     <td className="lo-num">{h.seed}</td>
                     <td className="lo-num">~제{h.drawTo}회</td>
                     <td>{h.createdBy || ''}</td>
-                    <td>
+                    <td className="lo-row-actions">
+                      <button type="button" className="lo-link" onClick={() => openRun(h.id, true)}>
+                        당첨 확인
+                      </button>
                       <button type="button" className="lo-link lo-danger" onClick={() => remove(h.id)}>
                         삭제
                       </button>
@@ -459,5 +652,19 @@ const CSS = `
 .lo-link { background: none; border: none; padding: 0; color: #2563eb; cursor: pointer; font-size: 14px; }
 .lo-danger { color: #b91c1c; }
 .lo-selected td { background: #eff6ff; }
+.lo-check { border-top: 1px solid #f3f4f6; margin: 4px 0 16px; padding-top: 12px; }
+.lo-check .lo-form { margin-bottom: 8px; }
+.lo-check .lo-error { margin: 8px 0; }
+.lo-short { min-width: 80px !important; width: 80px; }
+.lo-check-result { display: flex; flex-direction: column; gap: 8px; }
+.lo-check-draw { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.lo-plus { align-self: center; color: #6b7280; font-weight: 700; padding: 0 2px; }
+.lo-rank-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.lo-rank-chip { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: #f3f4f6; color: #374151; font-variant-numeric: tabular-nums; }
+.lo-rank-hit { background: #fef3c7; color: #92400e; font-weight: 600; }
+.lo-rank-best { background: #1d4ed8; color: #fff; font-weight: 600; }
+.lo-miss .lo-ball { background: #e5e7eb !important; color: #9ca3af; text-shadow: none; }
+.lo-win td { background: #fffbeb; }
+.lo-row-actions { display: flex; gap: 12px; }
 .lo-odds { color: #6b7280; font-size: 12px; text-align: center; margin: 8px 0 24px; }
 `;
