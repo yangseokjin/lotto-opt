@@ -8,7 +8,10 @@ python3 -m pip install ortools pyyaml
 python3 cli.py run --config config/to_be.yaml            # 개선안
 python3 cli.py run --config config/as_is.yaml            # 원본 기획서
 python3 cli.py run --config config/to_be.yaml --seed 7 --sets 30 --time-scale 2
+python3 cli.py compare --config config/as_is.yaml --config config/to_be.yaml   # 프리셋 비교표
+python3 cli.py run --config config/to_be.yaml --set 'targets.odd_even={"4:2": 0.36, "3:3": 0.33, "2:4": 0.24, other: 0.07}'
 ```
+`--set 점.경로=값` 으로 설정 파일을 고치지 않고 아무 항목이나 바꿔 실험할 수 있습니다.
 결과는 `out/<프리셋>_<세트수>sets_seed<시드>.md/.json` 에 저장됩니다. 종료 코드 1은 독립 검증에서 위반이 나왔다는 뜻입니다.
 
 ## 구조
@@ -26,6 +29,9 @@ python3 cli.py run --config config/to_be.yaml --seed 7 --sets 30 --time-scale 2
 ## 설정
 제약·목표·완화·목적 단계는 모두 `config/*.yaml` 에 있습니다. `targets` 값이 `auto` 이면 최근 `data.window` 회차에서 산출하고, 숫자 분포를 쓰면 그 값을 목표로 씁니다.
 
-## v0.1 메모
+## 홀짝 목표
+기본은 최근 100회 실측값(`targets.odd_even: auto`)입니다. 기획서 값(4:2 36%, 3:3 33%, 2:4 24%, 기타 7%)을 쓰려면 `config/to_be.yaml` 의 주석 줄을 쓰거나 위 `--set` 예시처럼 실행하세요.
+
+## 메모
 - 세트 정렬식 대칭 제거가 첫 해 탐색을 크게 늦춰서(켜면 약 140초, 끄면 12초) 기본으로 꺼 두었습니다(`rules.symmetry_breaking`).
 - `group_mix: auto` 는 현재 그룹을 같은 100회에 대입한 표본 내 추정치입니다.

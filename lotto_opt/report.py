@@ -1,6 +1,7 @@
 """결과 리포트 (지정 출력 형식 + JSON)."""
 import itertools
 import json
+import os
 import statistics
 
 from .stats import OE_BUCKETS, LH_BUCKETS
@@ -95,3 +96,35 @@ def to_json(sets, a, sm, stages, relaxed):
     return json.dumps({"range": [a.first, a.last], "hot": a.hot, "warm": a.warm, "cold": a.cold,
                        "carry": a.carry, "sets": sets, "stages": stages, "relaxed": relaxed,
                        "summary": {k: v for k, v in sm.items() if k != "counts"}}, ensure_ascii=False, indent=1)
+
+
+def compare(results):
+    """프리셋별 결과를 한 표로 비교."""
+    def dist(d, S):
+        return " / ".join(f"{_label(k)} {v}" for k, v in d.items())
+
+    rows = [
+        ("독립 검증", lambda r: "위반 없음" if not r["checks"]["sets"] and not r["checks"]["global"] else "위반 있음"),
+        ("조건 완화", lambda r: ", ".join(r["relaxed"]) or "없음"),
+        ("홀짝 분포(세트)", lambda r: dist(r["summary"]["odd_even"], r["summary"]["sets"])),
+        ("저고 분포(세트)", lambda r: dist(r["summary"]["low_high"], r["summary"]["sets"])),
+        ("이월수 0/1/2개", lambda r: " / ".join(str(v) for v in r["summary"]["carry"].values())),
+        ("세트당 Hot 개수", lambda r: ", ".join(f"{k}개 {v}" for k, v in r["summary"]["hot_per_set"].items())),
+        ("합계 범위(평균)", lambda r: f"{r['summary']['sum_min']}~{r['summary']['sum_max']} ({r['summary']['sum_mean']:.1f})"),
+        ("연속수 0쌍 세트", lambda r: str(r["summary"]["no_pair"])),
+        ("커버리지", lambda r: f"{r['summary']['coverage']}/45"),
+        ("번호별 출현 최소~최대(분산)", lambda r: f"{r['summary']['appear_min']}~{r['summary']['appear_max']} ({r['summary']['appear_var']:.2f})"),
+        ("교집합 최대(평균)", lambda r: f"{r['summary']['overlap_max']} ({r['summary']['overlap_mean']:.2f})"),
+        ("교집합 3개 쌍", lambda r: str(r["summary"]["overlap3"])),
+        ("최적화 단계", lambda r: "; ".join(f"{s['name']} {s['status']}" for s in r["stages"])),
+    ]
+    a = results[0]["analysis"]
+    head = "| 항목 | " + " | ".join(r["name"] for r in results) + " |"
+    sep = "|---|" + "---|" * len(results)
+    body = [f"| {label} | " + " | ".join(fn(r) for r in results) + " |" for label, fn in rows]
+    return "\n".join([
+        f"# 프리셋 비교 (제{a.first}회 ~ 제{a.last}회 기준)", "",
+        "※ 모든 조합의 1등 확률은 같습니다. 아래는 포트폴리오 구조 비교입니다.", "",
+        head, sep, *body, "",
+        "세트 목록: " + ", ".join(os.path.basename(r["path"]) for r in results),
+    ])

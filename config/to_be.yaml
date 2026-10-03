@@ -18,7 +18,9 @@ weighting:
 
 # 목표 분포: auto 이면 최근 window 회차에서 산출, 아니면 아래 값 사용
 targets:
-  odd_even: auto         # 버킷: "4:2","3:3","2:4",other
+  odd_even: auto         # 버킷: "4:2","3:3","2:4",other  (실측값 사용)
+  # 기획서 값으로 바꾸려면 위 줄을 지우고 아래 줄의 주석을 푸세요.
+  # odd_even: {"4:2": 0.36, "3:3": 0.33, "2:4": 0.24, other: 0.07}
   low_high: auto         # 버킷: "3:3","4:2","2:4",other (저=1~22)
   carry: auto            # 이월수 개수 0/1/2 분포
   group_mix: auto        # 그룹별 세트당 개수 분포 (현재 그룹 기준 과거 회차 구성)
