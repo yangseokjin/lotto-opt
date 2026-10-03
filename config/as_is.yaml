@@ -1,6 +1,6 @@
 # As-Is: 원본 기획서 제약 (엄격판)
 name: as_is
-portfolio: {sets: 30, seed: 0, workers: 4}
+portfolio: {sets: 30, seed: null, workers: 4}
 data: {window: 100, source: auto}
 weighting:
   recent_window: 10
@@ -9,13 +9,13 @@ weighting:
   groups: {hot: 14, warm: 17, cold: 14}
   hot_top: 5
 targets:
-  odd_even: {"4:2": 0.36, "3:3": 0.33, "2:4": 0.24, other: 0.07}
-  low_high: {"3:3": 0.35, "4:2": 0.35, "2:4": 0.25, other: 0.05}
+  odd_even: spec
+  low_high: spec
   carry: null
   group_mix: null
   sum_bins: null
 rules:
-  carry_over: {per_set: [1, 1], per_number_uses: [4, 6]}
+  carry_over: {per_set: [1, 1]}
   group_mix:
     hot: [3, 3]
     warm: [1, 2]
@@ -30,11 +30,18 @@ rules:
   low_count: [1, 5]
   bands: {}
   overlap: {max_common: 3}
-  appearance: {general: [2, 8], hot_top: [3, 10]}
-  coverage: {total: 40, hot: 13, warm: 15, cold: 12}
+profiles:
+  30:
+    rules.appearance: {general: [2, 8], hot_top: [3, 10]}
+    rules.carry_over.per_number_uses: [4, 6]
+    rules.coverage: {total: 40, hot: 13, warm: 15, cold: 12}
+  50:
+    rules.appearance: {general: [3, 12], hot_top: [4, 15]}
+    rules.carry_over.per_number_uses: [7, 10]
+    rules.coverage: {total: 43, hot: 13, warm: 16, cold: 13}
 relax:
   - {"rules.overlap.max_common": 4}
 objective:
-  - {name: distribution_error, time_limit: 60}
-  - {name: overlap, time_limit: 60}
-  - {name: appearance_spread, time_limit: 60}
+  - {name: distribution_error, rounds: 30, patience: 6}
+  - {name: overlap, rounds: 12, patience: 4}
+  - {name: appearance_variance, rounds: 15, patience: 4}
