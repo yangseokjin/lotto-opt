@@ -121,6 +121,20 @@ test('시드를 안 주면 엔진이 고른 시드를 기록', async () => {
   }
 });
 
+test('분산 우선(spread) 방식으로 실행', async () => {
+  process.env.FAKE_MODE = 'ok';
+  const app = await startApp();
+  try {
+    const r = await app.call('POST', '/run', { preset: 'spread', sets: 50 });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+    assert.strictEqual(r.data.run.preset, 'spread');
+    assert.strictEqual(r.data.run.result.preset, 'spread', '엔진에 config/spread.yaml 을 넘긴다');
+    assert.strictEqual(r.data.run.sets, 50);
+  } finally {
+    app.close();
+  }
+});
+
 test('종료 코드 1 (규칙 위반)은 결과와 함께 violations 표시', async () => {
   process.env.FAKE_MODE = 'violations';
   const app = await startApp();
@@ -357,3 +371,19 @@ test('진짜 엔진으로 30세트 (LOTTO_REAL_OPT_DIR 이 있을 때만)', { sk
     app.close();
   }
 });
+
+const REAL = process.env.LOTTO_REAL_OPT_DIR;
+test('진짜 엔진으로 분산 우선 50세트 (엔진에 config/spread.yaml 이 있을 때만)',
+  { skip: !REAL || !fs.existsSync(path.join(REAL, 'config', 'spread.yaml')), timeout: 300000 }, async () => {
+    delete process.env.FAKE_MODE;
+    const app = await startApp({ lottoOptDir: REAL });
+    try {
+      const r = await app.call('POST', '/run', { preset: 'spread', sets: 50, seed: 11 });
+      assert.strictEqual(r.status, 200, JSON.stringify(r.data).slice(0, 2000));
+      assert.strictEqual(r.data.run.result.preset, 'spread');
+      assert.strictEqual(r.data.run.result.sets.length, 50);
+      assert.ok(r.data.run.result.odds.best['3'] > r.data.run.result.odds.random_best['3']);
+    } finally {
+      app.close();
+    }
+  });

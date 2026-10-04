@@ -19,7 +19,8 @@
 1. Python 3.10 이상이 있는지 확인한다: `py -3 --version` 또는 `python --version`. 3.14도 된다.
 2. 엔진을 받는다: `git clone https://github.com/yangseokjin/lotto-opt D:\ClAUDE\lotto-opt`. 이미 있으면 `git pull` 한다.
    - lotto-opt v0.2 이상이 필요하다 (README 첫 줄이 `# lotto-opt v0.2`). 당첨 확인 버튼은 엔진의 `check` 명령도 필요하다 (`cli.py` 맨 위 사용법에 `cli.py check` 줄이 있으면 된다).
-   - main에 둘 다 없으면 `git checkout claude/project-thread-g77adz` 로 쓴다. 이 브랜치는 v0.2(PR #1) 위에 당첨 확인(PR #3)을 더한 것이다. 두 PR이 main에 합쳐지면 main으로 돌아온다.
+   - "분산 우선" 방식은 엔진 v0.3의 `config/spread.yaml` 이 필요하다.
+   - main에 셋 다 없으면 `git checkout claude/project-thread-4fb3yx` 로 쓴다. 이 브랜치는 v0.2(PR #1) 위에 당첨 확인(PR #3)과 v0.3 분산 우선(PR #5)을 더한 것이다. 세 PR이 main에 합쳐지면(#1 → #3 → #5) main으로 돌아온다.
 3. 가상환경을 만든다: `py -3 -m venv .venv` 후 `.venv\Scripts\python -m pip install -r requirements.txt`.
 4. 한 번 돌려 본다: `.venv\Scripts\python cli.py run --config config/to_be.yaml --sets 30 --seed 11 --out <임시 폴더>`.
    20~60초 뒤 `저장: ....json` 이 나오면 성공이다. 최근 당첨번호는 엔진이 인터넷에서 받아 `data\draws.json` 에 저장한다.
@@ -58,7 +59,7 @@
 ## 4. 시험 (운영 중인 인트라넷은 그대로 둔 채)
 1. 서버 시험: `D:\ClAUDE\lotto-opt\integrations\intranet` 폴더에서, 인트라넷의 express·better-sqlite3 를 쓰도록 `NODE_PATH` 에 인트라넷 node_modules 를 준다 (npm workspaces라 보통 `D:\ClAUDE\InOut_JEJUCJH\node_modules`, 없으면 `server\node_modules`). 그리고 `node --test test/lottoRouter.test.js` 를 돌린다 (셸에 맞는 문법으로). 시험용 DB는 임시 폴더에 만들어졌다가 지워진다.
    - 진짜 엔진까지 시험하려면 `LOTTO_REAL_OPT_DIR=D:\ClAUDE\lotto-opt`, `LOTTO_REAL_PYTHON=D:\ClAUDE\lotto-opt\.venv\Scripts\python.exe` 를 준다.
-   - 18개가 모두 통과해야 한다 (진짜 엔진이 없으면 1개는 건너뜀). 관리자가 아닌 요청이 403으로 막히는 것도 여기서 확인된다.
+   - 20개가 모두 통과해야 한다 (진짜 엔진이 없으면 2개, spread 가 없는 엔진이면 1개는 건너뜀). 관리자가 아닌 요청이 403으로 막히는 것도 여기서 확인된다.
 2. 화면 빌드 시험: `client` 폴더에서 `npx vite build --outDir <임시 폴더> --emptyOutDir`. `client/dist` 는 건드리지 않는다.
 
 ## 5. 반영 (사장님 허락을 받은 뒤에만)
@@ -88,7 +89,7 @@
 3. 서버: 키트의 `server/lottoRouter.js` 를 인트라넷에 둔 `lottoRouter.js` 위에 덮어쓴다. 처음 붙일 때 인트라넷에 맞춰 이 파일을 고쳤다면(가져오는 이름, `userOf` 등) `git diff` 로 그 부분을 확인하고 다시 넣는다. `index.js` 의 연결 코드와 `.env` 는 그대로 둔다.
    - `pageAccessGate`, `auditLogGate` 가 새 경로(`POST /api/lotto/runs/:id/check`)를 막는지 본다. 당첨 확인은 아무것도 저장하지 않으므로 `/api/lotto` 의 다른 경로와 같은 방식으로 통과시킨다.
 4. 화면: 키트의 `client/LottoOptimizer.jsx` 를 `client/src/pages/LottoOptimizer.jsx` 위에 덮어쓴 뒤, 처음 붙일 때 맞춘 부분(맨 위 `api` 가져오기, `/lotto/...` 경로, CSS)을 똑같이 다시 맞춘다. 덮어쓰기 전의 `git diff` 로 무엇을 고쳤는지 먼저 본다.
-5. 시험 (4단계와 같은 방법): `node --test test/lottoRouter.test.js` 18개 통과, `LOTTO_REAL_OPT_DIR` 를 주면 진짜 엔진으로 실행과 당첨 확인까지 확인한다. 화면은 임시 폴더로 빌드해 본다.
+5. 시험 (4단계와 같은 방법): `node --test test/lottoRouter.test.js` 20개 통과, `LOTTO_REAL_OPT_DIR` 를 주면 진짜 엔진으로 실행과 당첨 확인까지 확인한다. 화면은 임시 폴더로 빌드해 본다.
 6. 반영 (사장님 허락을 받은 뒤에만): 5단계 1~3과 같다. 먼저 "당첨 확인 버튼을 넣으려면 인트라넷을 재시작해야 해요. 1분쯤 접속이 끊기는데 지금 해도 될까요?" 하고 여쭤본다.
 7. 확인: 시스템 관리자로 "로또 최적화" → 지난 결과의 "당첨 확인" → 최신 회차 결과가 나오는지, 회차 칸에 다른 회차를 넣어도 되는지. 직원 계정은 `/api/lotto/runs/1/check` 가 403 인지.
 8. 같은 `lotto-optimizer` 브랜치에 커밋한다. 원격 저장소에 올릴지는 사장님께 물어본다.
@@ -99,3 +100,19 @@
 - 서버 프로세스가 정말 새로 떴는지. 작업 스케줄러나 pm2 등으로 돌면 옛 node 프로세스가 남아 있을 수 있다. 프로세스 시작 시각을 보고, 옛 프로세스면 이 PC의 원래 방식으로 다시 띄운다.
 - 확인: 관리자로 로그인한 브라우저에서 `/api/lotto/status` 를 열어 `"features":["check"]` 가 보이면 새 서버다.
 되돌리기: 두 파일을 이전 커밋으로 되돌리고 다시 빌드·재시작한다. 엔진은 `git checkout claude/project-thread-hdlqmc` 로 돌아간다.
+
+## 분산 우선 추가 (이미 붙인 PC)
+"방식" 선택지에 "분산 우선"을 더하는 순서다. 세트끼리 번호를 덜 겹치게 해서 한 회차에 하나라도 5등 이상 나올 확률을 높이는 방식이다 (50세트 약 80%, 무작위 50세트 약 70%). 1등 확률은 그대로다. 위 "지킬 것"은 그대로 지킨다. 당첨 확인을 아직 안 붙였다면 위 "당첨 확인 추가"와 한 번에 한다.
+
+1. 엔진: `D:\ClAUDE\lotto-opt` 에서 `git status` 로 고친 파일이 없는지 보고, `git fetch origin` → `git checkout claude/project-thread-4fb3yx` → `git pull`. PR #1·#3·#5 가 main에 합쳐졌으면 main을 쓴다.
+   - v0.3은 numpy가 필요하다: `.venv\Scripts\python -m pip install -r requirements.txt`.
+   - 확인: `.venv\Scripts\python cli.py run --config config/spread.yaml --sets 50 --seed 11 --out <임시 폴더>` 가 1분 안팎에 `저장:` 을 출력하면 된다.
+   - 기존 to_be/as_is 결과는 v0.3에서도 같은 방식으로 계산된다. 리포트에 당첨 확률 계산 줄이 더 붙는다.
+2. 키트: 키트 사본에서 `git fetch origin` 후 `claude/project-thread-8wizxf` 를 다시 받는다.
+3. 서버와 화면: "당첨 확인 추가"의 3~4단계와 같다. 운영 폴더의 `lottoRouter.js` 와 `LottoOptimizer.jsx` 를 새 파일로 바꾸고, 처음 붙일 때 맞춘 부분(가져오는 이름, `userOf`, `api` 가져오기, 경로, CSS)을 다시 맞춘다.
+4. 시험: `node --test test/lottoRouter.test.js` 20개 통과 (`LOTTO_REAL_OPT_DIR` 를 주면 진짜 엔진으로 분산 우선 50세트까지 시험한다). 화면은 임시 폴더로 빌드해 본다.
+5. 반영 (사장님 허락을 받은 뒤에만): "분산 우선 방식을 넣으려면 인트라넷을 재시작해야 해요. 1분쯤 접속이 끊기는데 지금 해도 될까요?" 하고 여쭤본 뒤, 5단계 1~3과 같이 백업, `npm run build`, 이 PC의 원래 방식으로 재시작. 옛 node 프로세스가 남지 않았는지 확인한다.
+6. 확인: 관리자로 "로또 최적화" → 방식 "분산 우선" (세트 수가 50으로 바뀜) → 실행 → 결과 요약에 "한 회차에 하나라도 5등 이상일 확률" 줄이 보이는지 → 당첨 확인도 되는지.
+7. 같은 `lotto-optimizer` 브랜치에 커밋한다. 원격 저장소에 올릴지는 사장님께 물어본다.
+
+되돌리기: 두 파일을 이전 커밋으로 되돌리고 다시 빌드·재시작한다. 엔진은 `git checkout claude/project-thread-g77adz` 로 돌아간다.

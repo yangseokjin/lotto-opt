@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api';
 
-const PRESET_LABEL = { to_be: '개선안', as_is: '원안' };
+const PRESET_LABEL = { to_be: '개선안', as_is: '원안', spread: '분산 우선' };
 const ODDS_NOTE =
   '모든 조합의 1등 확률은 1/8,145,060으로 같습니다. 이 페이지는 여러 세트에 번호를 고르게 나눠 담을 뿐, 당첨 확률을 높이지 않습니다.';
 const RUN_TIMEOUT_MS = 10 * 60 * 1000; // 계산이 20~60초 걸려서 기본 요청 시간 제한을 쓰지 않는다
@@ -19,6 +19,7 @@ function ballColor(n) {
 }
 
 const pad = (n) => String(n).padStart(2, '0');
+const pct = (p) => (typeof p === 'number' ? `${(p * 100).toFixed(1)}%` : '-');
 
 function errorText(e) {
   const data = e && e.response && e.response.data;
@@ -414,6 +415,12 @@ function RunResult({ run, onCopied, checkRequest }) {
         <li>
           번호별 사용 횟수: {sm.appear_min}~{sm.appear_max}회 · 합계 {sm.sum_min}~{sm.sum_max}
         </li>
+        {r.odds && r.odds.best ? (
+          <li>
+            한 회차에 하나라도 5등 이상일 확률 {pct(r.odds.best['3'])} (무작위로 고른 {r.odds.sets}세트는{' '}
+            {pct(r.odds.random_best && r.odds.random_best['3'])}) · 4등 이상 {pct(r.odds.best['4'])}
+          </li>
+        ) : null}
         <li>조건 완화: {r.relaxed && r.relaxed.length ? r.relaxed.join(', ') : '없음'}</li>
       </ul>
 
@@ -533,9 +540,17 @@ export default function LottoOptimizer() {
       <form className="lo-card lo-form" onSubmit={run}>
         <label>
           방식
-          <select value={preset} onChange={(e) => setPreset(e.target.value)} disabled={running}>
+          <select
+            value={preset}
+            onChange={(e) => {
+              setPreset(e.target.value);
+              if (e.target.value === 'spread') setSets(50); // 분산 우선은 50세트가 기본
+            }}
+            disabled={running}
+          >
             <option value="to_be">개선안</option>
             <option value="as_is">원안 (기획서 그대로)</option>
+            <option value="spread">분산 우선 (세트끼리 덜 겹치게)</option>
           </select>
         </label>
         <label>
@@ -563,6 +578,9 @@ export default function LottoOptimizer() {
         </button>
         <div className="lo-hint">
           최근 100회 당첨번호를 받아 계산해요. 보통 20~60초 걸려요. 같은 시드를 넣으면 같은 결과가 다시 나와요.
+          {preset === 'spread'
+            ? ' 분산 우선은 세트끼리 번호를 덜 겹치게 해서, 한 회차에 하나라도 5등 이상 나올 확률을 높여요(50세트 약 80%, 무작위 약 70%). 대신 홀짝·저고 같은 목표 분포와는 조금 더 달라져요.'
+            : ''}
         </div>
       </form>
 

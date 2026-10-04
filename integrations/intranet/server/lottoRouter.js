@@ -12,7 +12,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const PRESETS = ['to_be', 'as_is'];
+const PRESETS = ['to_be', 'as_is', 'spread']; // spread = 분산 우선 (엔진 v0.3, config/spread.yaml)
 const SET_SIZES = [30, 50];
 const MAX_LOG = 64 * 1024;
 
@@ -132,7 +132,7 @@ function createLottoRouter(options = {}) {
     const sets = body.sets == null ? 30 : Number(body.sets);
     let seed = null;
     if (!PRESETS.includes(preset)) {
-      return res.status(400).json({ error: '방식은 개선안(to_be) 또는 원안(as_is)만 고를 수 있어요.' });
+      return res.status(400).json({ error: '방식은 개선안(to_be), 원안(as_is), 분산 우선(spread) 중에서 골라 주세요.' });
     }
     if (!SET_SIZES.includes(sets)) {
       return res.status(400).json({ error: '세트 수는 30 또는 50만 고를 수 있어요.' });
