@@ -122,6 +122,7 @@ function createLottoRouter(options = {}) {
       running: Boolean(running),
       startedAt: running ? running.startedAt : null,
       configured: Boolean(lottoOptDir),
+      features: ['check'], // 화면이 서버 버전을 알아보는 데 쓴다
     });
   });
 
@@ -342,6 +343,11 @@ function createLottoRouter(options = {}) {
     const info = deleteRun.run(Number(req.params.id));
     if (!info.changes) return res.status(404).json({ error: '그 결과를 찾지 못했어요.' });
     res.json({ ok: true });
+  });
+
+  // 이 라우터가 모르는 /api/lotto 경로는 여기서 한국어로 답한다 (인트라넷 공통 404와 구별하려고)
+  router.use((req, res) => {
+    res.status(404).json({ error: `로또 API에 없는 경로예요: ${req.method} ${req.baseUrl}${req.path}` });
   });
 
   // 깨진 JSON 요청은 HTML 오류 페이지 대신 JSON 으로 답한다

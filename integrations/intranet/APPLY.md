@@ -58,7 +58,7 @@
 ## 4. 시험 (운영 중인 인트라넷은 그대로 둔 채)
 1. 서버 시험: `D:\ClAUDE\lotto-opt\integrations\intranet` 폴더에서, 인트라넷의 express·better-sqlite3 를 쓰도록 `NODE_PATH` 에 인트라넷 node_modules 를 준다 (npm workspaces라 보통 `D:\ClAUDE\InOut_JEJUCJH\node_modules`, 없으면 `server\node_modules`). 그리고 `node --test test/lottoRouter.test.js` 를 돌린다 (셸에 맞는 문법으로). 시험용 DB는 임시 폴더에 만들어졌다가 지워진다.
    - 진짜 엔진까지 시험하려면 `LOTTO_REAL_OPT_DIR=D:\ClAUDE\lotto-opt`, `LOTTO_REAL_PYTHON=D:\ClAUDE\lotto-opt\.venv\Scripts\python.exe` 를 준다.
-   - 17개가 모두 통과해야 한다 (진짜 엔진이 없으면 1개는 건너뜀). 관리자가 아닌 요청이 403으로 막히는 것도 여기서 확인된다.
+   - 18개가 모두 통과해야 한다 (진짜 엔진이 없으면 1개는 건너뜀). 관리자가 아닌 요청이 403으로 막히는 것도 여기서 확인된다.
 2. 화면 빌드 시험: `client` 폴더에서 `npx vite build --outDir <임시 폴더> --emptyOutDir`. `client/dist` 는 건드리지 않는다.
 
 ## 5. 반영 (사장님 허락을 받은 뒤에만)
@@ -88,10 +88,14 @@
 3. 서버: 키트의 `server/lottoRouter.js` 를 인트라넷에 둔 `lottoRouter.js` 위에 덮어쓴다. 처음 붙일 때 인트라넷에 맞춰 이 파일을 고쳤다면(가져오는 이름, `userOf` 등) `git diff` 로 그 부분을 확인하고 다시 넣는다. `index.js` 의 연결 코드와 `.env` 는 그대로 둔다.
    - `pageAccessGate`, `auditLogGate` 가 새 경로(`POST /api/lotto/runs/:id/check`)를 막는지 본다. 당첨 확인은 아무것도 저장하지 않으므로 `/api/lotto` 의 다른 경로와 같은 방식으로 통과시킨다.
 4. 화면: 키트의 `client/LottoOptimizer.jsx` 를 `client/src/pages/LottoOptimizer.jsx` 위에 덮어쓴 뒤, 처음 붙일 때 맞춘 부분(맨 위 `api` 가져오기, `/lotto/...` 경로, CSS)을 똑같이 다시 맞춘다. 덮어쓰기 전의 `git diff` 로 무엇을 고쳤는지 먼저 본다.
-5. 시험 (4단계와 같은 방법): `node --test test/lottoRouter.test.js` 17개 통과, `LOTTO_REAL_OPT_DIR` 를 주면 진짜 엔진으로 실행과 당첨 확인까지 확인한다. 화면은 임시 폴더로 빌드해 본다.
+5. 시험 (4단계와 같은 방법): `node --test test/lottoRouter.test.js` 18개 통과, `LOTTO_REAL_OPT_DIR` 를 주면 진짜 엔진으로 실행과 당첨 확인까지 확인한다. 화면은 임시 폴더로 빌드해 본다.
 6. 반영 (사장님 허락을 받은 뒤에만): 5단계 1~3과 같다. 먼저 "당첨 확인 버튼을 넣으려면 인트라넷을 재시작해야 해요. 1분쯤 접속이 끊기는데 지금 해도 될까요?" 하고 여쭤본다.
 7. 확인: 시스템 관리자로 "로또 최적화" → 지난 결과의 "당첨 확인" → 최신 회차 결과가 나오는지, 회차 칸에 다른 회차를 넣어도 되는지. 직원 계정은 `/api/lotto/runs/1/check` 가 403 인지.
 8. 같은 `lotto-optimizer` 브랜치에 커밋한다. 원격 저장소에 올릴지는 사장님께 물어본다.
 
 화면에 "엔진에 당첨 확인 기능이 아직 없어요"가 나오면 1단계(엔진 브랜치)가 안 된 것이다.
+화면에 영어 "Not found" 나 "서버가 아직 당첨 확인이 없는 옛 버전으로 돌고 있어요"가 나오면, 요청이 로또 라우터를 지나 인트라넷 공통 404까지 간 것이다. 곧 지금 돌고 있는 서버에 새 `lottoRouter.js` 가 없다. 확인할 것:
+- `server/src/index.js` 가 `require` 하는 바로 그 `lottoRouter.js` 파일(작업용 복사본이나 worktree가 아니라 운영 폴더의 파일)에 `/runs/:id/check` 가 들어 있는지.
+- 서버 프로세스가 정말 새로 떴는지. 작업 스케줄러나 pm2 등으로 돌면 옛 node 프로세스가 남아 있을 수 있다. 프로세스 시작 시각을 보고, 옛 프로세스면 이 PC의 원래 방식으로 다시 띄운다.
+- 확인: 관리자로 로그인한 브라우저에서 `/api/lotto/status` 를 열어 `"features":["check"]` 가 보이면 새 서버다.
 되돌리기: 두 파일을 이전 커밋으로 되돌리고 다시 빌드·재시작한다. 엔진은 `git checkout claude/project-thread-hdlqmc` 로 돌아간다.

@@ -262,6 +262,18 @@ test('당첨 확인: 회차 지정, 직접 입력, 없는 회차', async () => {
   }
 });
 
+test('상태에 당첨 확인 기능 표시, 모르는 경로는 한국어 404', async () => {
+  const app = await startApp();
+  try {
+    assert.deepStrictEqual((await app.call('GET', '/status')).data.features, ['check']);
+    const r = await app.call('POST', '/runs/1/nope', {});
+    assert.strictEqual(r.status, 404);
+    assert.match(r.data.error, /로또 API에 없는 경로/);
+  } finally {
+    app.close();
+  }
+});
+
 test('당첨 확인: 잘못된 입력은 400, 없는 결과는 404', async () => {
   const app = await startApp();
   try {

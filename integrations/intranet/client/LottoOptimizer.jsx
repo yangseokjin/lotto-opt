@@ -116,6 +116,17 @@ function NumberGroup({ title, nums, highlight }) {
   );
 }
 
+// 404인데 로또 라우터의 한국어 답이 아니면 (예: "Not found") 요청이 인트라넷 공통 404까지 간 것이다.
+// 곧 돌고 있는 서버의 lottoRouter.js 가 당첨 확인이 없는 옛 파일이라는 뜻이다.
+function checkErrorText(e) {
+  const res = e && e.response;
+  const ours = res && res.data && typeof res.data.error === 'string' && /[가-힣]/.test(res.data.error);
+  if (res && res.status === 404 && !ours) {
+    return '서버가 아직 당첨 확인이 없는 옛 버전으로 돌고 있어요. 인트라넷 서버의 lottoRouter.js 를 새 파일로 바꾸고 서버를 다시 시작해 주세요 (APPLY.md "당첨 확인 추가" 3단계).';
+  }
+  return errorText(e);
+}
+
 function parseNumbers(text) {
   return text
     .split(/[\s,]+/)
@@ -223,7 +234,7 @@ function CheckPanel({ run, request }) {
       const { data } = await api.post(`/lotto/runs/${run.id}/check`, body, { timeout: CHECK_TIMEOUT_MS });
       setCheck(data.check);
     } catch (err) {
-      setError(errorText(err));
+      setError(checkErrorText(err));
     } finally {
       setBusy(false);
     }
