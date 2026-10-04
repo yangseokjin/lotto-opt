@@ -1,10 +1,11 @@
 # Spread: To-Be 제약은 그대로, 목적 순서만 바꾼 '분산 우선' 프리셋
 # 세트끼리 번호를 덜 겹치게(당첨이 같은 회차에 몰리지 않게) 하는 것을 1순위로 두고, 분포 맞추기는 그다음.
-# 30세트 중 하나라도 5등 이상일 확률(정확 계산): to_be 약 55% → spread 약 59% (무작위 30세트 약 51.5%).
+# 하나라도 5등 이상일 확률(정확 계산): 30세트 to_be 약 55% → spread 약 59% (무작위 51.5%),
+# 50세트 spread 약 80% (무작위 70.1%). 기본은 50세트.
 # 단, 홀짝·저고·Hot/Warm/Cold 같은 목표 분포와의 차이는 to_be 보다 커진다.
 name: spread
 portfolio:
-  sets: 30               # 30 또는 50 (기획서 기준). 다른 수도 가능: 가까운 기준을 비례 조정
+  sets: 50               # 50세트 = 하나라도 5등 이상일 확률 약 80% (30세트는 약 59%)
   seed: null             # null 이면 실행마다 새 시드(다른 조합). 숫자를 주면 같은 결과 재현
   workers: 4
 
@@ -69,6 +70,6 @@ relax:
 
 objective:               # 위에서부터 사전식 최적화 (rounds: 최대 탐색 라운드, patience: 개선 없이 버틸 라운드)
   # weights: hit = 공유 개수별로 '두 세트가 같은 회차에 함께 맞는 확률'만큼 벌점. 1개 공유 쌍까지 센다
-  - {name: overlap, weights: hit, rounds: 20, patience: 6}
+  - {name: overlap, weights: hit, rounds: 60, patience: 6, ls_iters: 60000}   # 50세트 80%를 꾸준히 넘기려고 탐색량 3배
   - {name: distribution_error, rounds: 30, patience: 6}
   - {name: appearance_variance, rounds: 15, patience: 4}   # 번호별 출현 횟수 분산 → 이월수 사용 편차

@@ -14,7 +14,7 @@ python3 cli.py run --config config/as_is.yaml                # 원본 기획서 
 python3 cli.py compare --config config/as_is.yaml --config config/to_be.yaml --sets 50   # 같은 데이터·같은 시드로 비교
 python3 cli.py run --config config/to_be.yaml --effort 2     # 탐색량 두 배 (보통 1이면 충분)
 python3 cli.py run --config config/to_be.yaml --set targets.odd_even=spec   # 설정 파일을 고치지 않고 항목 바꾸기
-python3 cli.py run --config config/spread.yaml               # 분산 우선: 하나라도 맞을 확률을 최대로
+python3 cli.py run --config config/spread.yaml               # 분산 우선 50세트: 하나라도 5등 이상일 확률 약 80%
 python3 cli.py odds out/to_be_30sets_seed7.json              # 하나라도 맞을 정확한 확률
 python3 cli.py backtest --config config/to_be.yaml --config config/spread.yaml --draws 20   # 과거 회차로 검증
 ```
@@ -57,6 +57,13 @@ python3 cli.py backtest --config config/to_be.yaml --config config/spread.yaml -
 | 무작위 30세트 | 51.5% | 48.5% |
 | to_be (분포 우선) | 55.3% | 44.7% |
 | spread (분산 우선) | 58.8% | 41.2% |
+
+| 세트 수 (spread) | 하나라도 5등 이상 | 무작위 같은 수 |
+|---|---|---|
+| 30 | 58.8% | 51.5% |
+| 40 | 71.7% | 61.9% |
+| 44 | 75.1% | 65.4% |
+| 50 (spread 기본) | 약 80% (시드 1~5: 79.99~80.51%) | 70.1% |
 
 30세트로 가능한 최대치도 약 59%라서, 어떤 방식이든 열 번 중 네 번은 한 세트도 맞지 않는 회차가 나옵니다.
 `spread` 는 `to_be` 와 같은 제약을 지키되 겹침 줄이기(`overlap`, `weights: hit`)를 1순위로 두고, 분포 맞추기를 2순위로 둡니다. 그래서 홀짝·저고·세트 구성 목표와의 차이는 커집니다.
