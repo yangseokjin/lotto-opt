@@ -1,0 +1,74 @@
+# Spread: To-Be 제약은 그대로, 목적 순서만 바꾼 '분산 우선' 프리셋
+# 세트끼리 번호를 덜 겹치게(당첨이 같은 회차에 몰리지 않게) 하는 것을 1순위로 두고, 분포 맞추기는 그다음.
+# 30세트 중 하나라도 5등 이상일 확률(정확 계산): to_be 약 55% → spread 약 59% (무작위 30세트 약 51.5%).
+# 단, 홀짝·저고·Hot/Warm/Cold 같은 목표 분포와의 차이는 to_be 보다 커진다.
+name: spread
+portfolio:
+  sets: 30               # 30 또는 50 (기획서 기준). 다른 수도 가능: 가까운 기준을 비례 조정
+  seed: null             # null 이면 실행마다 새 시드(다른 조합). 숫자를 주면 같은 결과 재현
+  workers: 4
+
+data:
+  window: 100            # 분석 회차 수
+  source: auto           # auto(공식 → 미러) | official | mirror | cache
+
+weighting:
+  recent_window: 10
+  recent_weight: 1.5
+  base_weight: 1.0
+  groups: {hot: 14, warm: 17, cold: 14}
+  hot_top: 5
+
+# 목표 분포: auto = 최근 window 회차 실측값, spec = 기획서 값, 숫자 분포 = 그 값, null = 목표 없음
+targets:
+  odd_even: auto         # 버킷 "4:2","3:3","2:4",other. spec 이면 4:2 36%, 3:3 33%, 2:4 24%, 기타 7%
+  low_high: auto         # 버킷 "3:3","4:2","2:4",other (저=1~22). spec 이면 35/35/25/5%
+  carry: auto            # 세트당 이월수 개수 0/1/2 분포. spec 이면 30/55/15%
+  group_mix: auto        # 세트 구성 (Hot-Warm-Cold) 조합 분포. 예: {"2-3-1": 0.4, "3-2-1": 0.6}
+  sum_bins: auto         # 과거 합계 5분위 구간별 실제 비율
+
+rules:
+  carry_over:
+    per_set: [0, 2]
+  group_mix:
+    hot: [2, 4]
+    warm: [1, 3]
+    cold: [1, 2]
+    combos: null         # [[h,w,c], ...] 지정 시 그 조합만 허용
+  mean_reversion:
+    mode: forced         # forced | weight | off
+    candidates: 5        # Cold 중 최장 미출현 N개
+    min_numbers: 2       # 그중 최소 몇 개를 (몇 세트 이상 넣을지는 profiles)
+    bonus: 0.2           # mode=weight 일 때만 사용
+  sum_range: [100, 175]
+  consecutive: {max_run: 2, max_pairs: 1, zero_pair_share: [0.45, 0.55]}
+  ac_min: 7
+  zones: {min_zones: 3, max_per_zone: 3}
+  odd_count: [1, 5]      # 세트당 홀수 개수 허용 범위
+  low_count: [1, 5]
+  bands:                 # 전역 분포 허용 범위(세트 비율). 목표와 별개인 하드 한계
+    odd_even: {"4:2": [0.30, 0.40]}
+  overlap: {max_common: 3}
+
+# 세트 수별 기준 (기획서 30/50세트 값). 50세트의 평균회귀 세트 수 8은 30세트 기준 5를 비례 확장한 값
+profiles:
+  30:
+    rules.appearance: {general: [2, 8], hot_top: [3, 10]}
+    rules.carry_over.per_number_uses: [4, 6]
+    rules.coverage: {total: 40, hot: 13, warm: 15, cold: 12}
+    rules.mean_reversion.min_sets_each: 5
+  50:
+    rules.appearance: {general: [3, 12], hot_top: [4, 15]}
+    rules.carry_over.per_number_uses: [7, 10]
+    rules.coverage: {total: 43, hot: 13, warm: 16, cold: 13}
+    rules.mean_reversion.min_sets_each: 8
+
+# 해가 없을 때 순서대로 적용할 완화 (점 경로: 값)
+relax:
+  - {"rules.overlap.max_common": 4}
+
+objective:               # 위에서부터 사전식 최적화 (rounds: 최대 탐색 라운드, patience: 개선 없이 버틸 라운드)
+  # weights: hit = 공유 개수별로 '두 세트가 같은 회차에 함께 맞는 확률'만큼 벌점. 1개 공유 쌍까지 센다
+  - {name: overlap, weights: hit, rounds: 20, patience: 6}
+  - {name: distribution_error, rounds: 30, patience: 6}
+  - {name: appearance_variance, rounds: 15, patience: 4}   # 번호별 출현 횟수 분산 → 이월수 사용 편차

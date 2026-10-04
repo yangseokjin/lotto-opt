@@ -165,14 +165,14 @@ def render(sets, a, cfg, stages, relaxed, checks, source, meta=None):
     return "\n".join(out), sm
 
 
-def to_json(sets, a, sm, stages, relaxed, meta=None):
+def to_json(sets, a, sm, stages, relaxed, meta=None, odds=None):
     meta = meta or {}
     keep = {k: v for k, v in sm.items() if k not in ("counts", "cats")}
     keep["group_mix"] = {"-".join(map(str, k)): v for k, v in keep["group_mix"].items()}
     return json.dumps({"version": __version__, "seed": meta.get("seed"), "preset": meta.get("preset"),
                        "profile": meta.get("profile"), "range": [a.first, a.last], "hot": a.hot, "warm": a.warm,
                        "cold": a.cold, "carry": a.carry, "sets": sets, "stages": stages, "relaxed": relaxed,
-                       "summary": keep}, ensure_ascii=False, indent=1, default=str)
+                       "summary": keep, "odds": odds}, ensure_ascii=False, indent=1, default=str)
 
 
 def compare(results):
