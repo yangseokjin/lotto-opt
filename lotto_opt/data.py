@@ -69,11 +69,7 @@ def _fetch_official(cached):
 
 def load_draws(cache_path, source="auto"):
     """(전체 회차 목록, 사용한 출처) 반환."""
-    cached = []
-    if os.path.exists(cache_path):
-        with open(cache_path, encoding="utf-8") as f:
-            cached = [_normalize(r) for r in json.load(f)]
-        cached.sort(key=lambda d: d["draw_no"])
+    cached = _read_cache(cache_path)
     if source == "cache" or (cached and cached[-1]["draw_no"] >= expected_latest()):
         return cached, "cache"
     used = None
@@ -91,7 +87,29 @@ def load_draws(cache_path, source="auto"):
             if not cached or source == "mirror":
                 raise
             return cached, "cache (최신 데이터를 받지 못함)"
-    os.makedirs(os.path.dirname(cache_path) or ".", exist_ok=True)
-    with open(cache_path, "w", encoding="utf-8") as f:
-        json.dump(draws, f, ensure_ascii=False)
+    _write_cache(cache_path, draws)
     return draws, used
+
+
+def _read_cache(path):
+    """캐시 읽기. 파일이 깨졌으면(쓰다가 멈춘 경우 등) 없는 것으로 보고 새로 받는다."""
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, encoding="utf-8") as f:
+            return sorted((_normalize(r) for r in json.load(f)), key=lambda d: d["draw_no"])
+    except (ValueError, KeyError, TypeError):
+        return []
+
+
+def _write_cache(path, draws):
+    """임시 파일에 다 쓴 뒤 한 번에 바꿔 넣는다. 쓰는 도중 멈추거나 동시에 읽어도 반쯤 쓴 파일이 보이지 않는다."""
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    tmp = f"{path}.{os.getpid()}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(draws, f, ensure_ascii=False)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)

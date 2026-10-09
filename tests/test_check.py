@@ -5,7 +5,7 @@ import pytest
 
 import cli
 from conftest import FIXTURE
-from lotto_opt import check
+from lotto_opt import check, data
 
 WIN, BONUS = [3, 8, 17, 30, 33, 34], 28  # 제1124회
 SETS = [
@@ -104,7 +104,7 @@ def test_check_reads_run_output(tmp_path, capsys):
     assert cli.main(["check", str(out / "to_be_12sets_seed3.json"), "--draw", "1243", "--json",
                      "--source", "cache", "--data", FIXTURE]) == 0
     res = json.loads(capsys.readouterr().out)
-    assert res["in_sample"] and res["target_draw"] == 1244
+    assert res["in_sample"] and res["target_draw"] == max(1243, data.expected_latest()) + 1
     assert max(r["match_count"] for r in res["results"]) <= 2
 
 
@@ -114,3 +114,13 @@ def test_cli_check_target_not_drawn_yet(tmp_path, capsys):
     with pytest.raises(SystemExit) as e:
         cli.main(["check", str(path), "--source", "cache", "--data", FIXTURE])
     assert "제1244회" in str(e.value.code) and "추첨 전" in str(e.value.code)
+
+
+def test_target_draw_saved_by_run_wins(tmp_path, capsys):
+    """run 이 적어 둔 target_draw 가 있으면 그 회차와 비교한다 (당첨번호를 못 받은 채 만든 경우)."""
+    path = tmp_path / "p.json"
+    path.write_text(json.dumps({"preset": "to_be", "seed": 1, "range": [1104, 1123], "target_draw": 1125,
+                                "sets": SETS}), encoding="utf-8")
+    assert cli.main(["check", str(path), "--source", "cache", "--data", FIXTURE, "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["draw"]["draw_no"] == 1125 and out["target_draw"] == 1125

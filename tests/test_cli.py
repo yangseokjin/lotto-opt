@@ -17,6 +17,10 @@ def test_run_writes_report(tmp_path):
     assert "독립 검증: 위반 없음" in md and "--seed 3" in md
     data = json.loads((tmp_path / "to_be_12sets_seed3.json").read_text(encoding="utf-8"))
     assert data["seed"] == 3 and len(data["sets"]) == 12
+    # 노린 회차: 받은 데이터 다음 회차, 단 추첨이 끝난 회차를 못 받았으면 그다음 회차
+    from lotto_opt.data import expected_latest
+    assert data["target_draw"] == max(data["range"][1], expected_latest()) + 1
+    assert f"제{data['target_draw']}회**용" in md
 
 
 def test_run_without_seed_picks_one(tmp_path):
