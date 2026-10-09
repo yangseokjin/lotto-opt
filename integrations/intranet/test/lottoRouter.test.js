@@ -48,7 +48,7 @@ async function startApp(opts = {}) {
 test('관리자가 아니면 모든 경로가 403', async () => {
   const app = await startApp();
   try {
-    for (const [m, u, b] of [['GET', '/status'], ['POST', '/run', {}], ['GET', '/runs'], ['GET', '/runs/1'], ['DELETE', '/runs/1']]) {
+    for (const [m, u, b] of [['GET', '/status'], ['POST', '/run', {}], ['GET', '/runs'], ['GET', '/runs/1'], ['POST', '/runs/1/check', {}], ['DELETE', '/runs/1']]) {
       const r = await app.call(m, u, b, 'staff');
       assert.strictEqual(r.status, 403, `${m} ${u}`);
     }
@@ -116,6 +116,20 @@ test('시드를 안 주면 엔진이 고른 시드를 기록', async () => {
     assert.strictEqual(r.data.run.seed, 4242);
     assert.strictEqual(r.data.run.sets, 30);
     assert.strictEqual(r.data.run.preset, 'as_is');
+  } finally {
+    app.close();
+  }
+});
+
+test('분산 우선(spread) 방식으로 실행', async () => {
+  process.env.FAKE_MODE = 'ok';
+  const app = await startApp();
+  try {
+    const r = await app.call('POST', '/run', { preset: 'spread', sets: 50 });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+    assert.strictEqual(r.data.run.preset, 'spread');
+    assert.strictEqual(r.data.run.result.preset, 'spread', '엔진에 config/spread.yaml 을 넘긴다');
+    assert.strictEqual(r.data.run.sets, 50);
   } finally {
     app.close();
   }
@@ -212,7 +226,126 @@ test('엔진 폴더가 설정되지 않으면 500', async () => {
   }
 });
 
-test('진짜 엔진으로 30세트 (LOTTO_REAL_OPT_DIR 이 있을 때만)', { skip: !process.env.LOTTO_REAL_OPT_DIR, timeout: 300000 }, async () => {
+async function makeRun(app) {
+  process.env.FAKE_MODE = 'ok';
+  const r = await app.call('POST', '/run', { sets: 30, seed: 7 });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  return r.data.run;
+}
+
+test('당첨 확인: 기본은 최신 회차, 세트별 등수와 요약', async () => {
+  process.env.FAKE_CHECK = 'ok';
+  const app = await startApp();
+  try {
+    const run = await makeRun(app);
+    const r = await app.call('POST', `/runs/${run.id}/check`, {});
+    assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+    const c = r.data.check;
+    assert.strictEqual(c.draw.draw_no, 1244);
+    assert.deepStrictEqual(c.numbers, [1, 7, 13, 19, 25, 31]);
+    assert.strictEqual(c.results.length, 30);
+    assert.strictEqual(c.results[0].rank, 1);
+    assert.deepStrictEqual(c.results[0].matched, [1, 7, 13, 19, 25, 31]);
+    assert.strictEqual(c.summary.best_rank, 1);
+    assert.strictEqual(c.summary.sets, 30);
+    assert.deepStrictEqual(c.portfolio.range, [1145, 1244]);
+  } finally {
+    app.close();
+  }
+});
+
+test('당첨 확인: 회차 지정, 직접 입력, 없는 회차', async () => {
+  process.env.FAKE_CHECK = 'ok';
+  const app = await startApp();
+  try {
+    const run = await makeRun(app);
+    const byDraw = await app.call('POST', `/runs/${run.id}/check`, { draw: 1243 });
+    assert.strictEqual(byDraw.status, 200);
+    assert.strictEqual(byDraw.data.check.draw.draw_no, 1243);
+
+    const manual = await app.call('POST', `/runs/${run.id}/check`, { numbers: [8, 14, 20, 26, 32, 1], bonus: 38 });
+    assert.strictEqual(manual.status, 200);
+    assert.strictEqual(manual.data.check.draw, null);
+    assert.strictEqual(manual.data.check.results[1].rank, 2, '5개 + 보너스 = 2등');
+
+    const missing = await app.call('POST', `/runs/${run.id}/check`, { draw: 1300 });
+    assert.strictEqual(missing.status, 422);
+    assert.match(missing.data.error, /제1300회 당첨번호가 데이터에 없습니다/);
+  } finally {
+    app.close();
+  }
+});
+
+test('상태에 당첨 확인 기능 표시, 모르는 경로는 한국어 404', async () => {
+  const app = await startApp();
+  try {
+    assert.deepStrictEqual((await app.call('GET', '/status')).data.features, ['check']);
+    const r = await app.call('POST', '/runs/1/nope', {});
+    assert.strictEqual(r.status, 404);
+    assert.match(r.data.error, /로또 API에 없는 경로/);
+  } finally {
+    app.close();
+  }
+});
+
+test('당첨 확인: 잘못된 입력은 400, 없는 결과는 404', async () => {
+  const app = await startApp();
+  try {
+    const run = await makeRun(app);
+    const url = `/runs/${run.id}/check`;
+    for (const body of [
+      { draw: 0 }, { draw: 1.5 }, { draw: '1244; del *' },
+      { numbers: [1, 2, 3, 4, 5], bonus: 6 }, { numbers: [1, 2, 3, 4, 5, 5], bonus: 6 },
+      { numbers: [1, 2, 3, 4, 5, 46], bonus: 7 }, { numbers: [1, 2, 3, 4, 5, 6], bonus: 6 },
+      { numbers: [1, 2, 3, 4, 5, 6] }, { numbers: '1,2,3,4,5,6', bonus: 7 },
+    ]) {
+      assert.strictEqual((await app.call('POST', url, body)).status, 400, JSON.stringify(body));
+    }
+    assert.strictEqual((await app.call('POST', '/runs/999/check', {})).status, 404);
+  } finally {
+    app.close();
+  }
+});
+
+test('당첨 확인: 엔진이 옛 버전이면 501과 업데이트 안내', async () => {
+  process.env.FAKE_CHECK = 'old';
+  const app = await startApp();
+  try {
+    const run = await makeRun(app);
+    const r = await app.call('POST', `/runs/${run.id}/check`, {});
+    assert.strictEqual(r.status, 501);
+    assert.match(r.data.error, /당첨 확인 기능이 아직 없어요/);
+  } finally {
+    process.env.FAKE_CHECK = 'ok';
+    app.close();
+  }
+});
+
+test('당첨 확인: 시간 초과 504, 읽을 수 없는 출력 500, 계산 중에도 가능', async () => {
+  const app = await startApp({ checkTimeoutMs: 1000 });
+  try {
+    const run = await makeRun(app);
+    process.env.FAKE_CHECK = 'slow';
+    assert.strictEqual((await app.call('POST', `/runs/${run.id}/check`, {})).status, 504);
+    process.env.FAKE_CHECK = 'garbage';
+    const bad = await app.call('POST', `/runs/${run.id}/check`, {});
+    assert.strictEqual(bad.status, 500);
+    assert.match(bad.data.error, /결과를 읽지 못했어요/);
+
+    process.env.FAKE_CHECK = 'ok';
+    process.env.FAKE_MODE = 'slow';
+    const pending = app.call('POST', '/run', {});
+    await new Promise((r) => setTimeout(r, 500));
+    assert.strictEqual((await app.call('POST', `/runs/${run.id}/check`, {})).status, 200);
+    assert.strictEqual((await pending).status, 200);
+  } finally {
+    process.env.FAKE_CHECK = 'ok';
+    process.env.FAKE_MODE = 'ok';
+    app.close();
+  }
+});
+
+test('진짜 엔진으로 30세트 (LOTTO_REAL_OPT_DIR 이 있을 때만)', { skip: !process.env.LOTTO_REAL_OPT_DIR, timeout: 300000 }, async (t) => {
   delete process.env.FAKE_MODE;
   const app = await startApp({ lottoOptDir: process.env.LOTTO_REAL_OPT_DIR });
   try {
@@ -224,7 +357,33 @@ test('진짜 엔진으로 30세트 (LOTTO_REAL_OPT_DIR 이 있을 때만)', { sk
     assert.strictEqual(run.seed, 11);
     assert.ok(run.drawTo > run.drawFrom);
     assert.match(run.report, /1\/8,145,060/);
+
+    // 당첨 확인 (엔진에 check 명령이 있을 때만)
+    const c = await app.call('POST', `/runs/${run.id}/check`, { draw: run.drawTo });
+    if (c.status === 501) {
+      t.diagnostic('이 엔진에는 check 명령이 없어 당첨 확인 시험은 건너뜀');
+    } else {
+      assert.strictEqual(c.status, 200, JSON.stringify(c.data).slice(0, 2000));
+      assert.strictEqual(c.data.check.draw.draw_no, run.drawTo);
+      assert.strictEqual(c.data.check.results.length, 30);
+    }
   } finally {
     app.close();
   }
 });
+
+const REAL = process.env.LOTTO_REAL_OPT_DIR;
+test('진짜 엔진으로 분산 우선 50세트 (엔진에 config/spread.yaml 이 있을 때만)',
+  { skip: !REAL || !fs.existsSync(path.join(REAL, 'config', 'spread.yaml')), timeout: 300000 }, async () => {
+    delete process.env.FAKE_MODE;
+    const app = await startApp({ lottoOptDir: REAL });
+    try {
+      const r = await app.call('POST', '/run', { preset: 'spread', sets: 50, seed: 11 });
+      assert.strictEqual(r.status, 200, JSON.stringify(r.data).slice(0, 2000));
+      assert.strictEqual(r.data.run.result.preset, 'spread');
+      assert.strictEqual(r.data.run.result.sets.length, 50);
+      assert.ok(r.data.run.result.odds.best['3'] > r.data.run.result.odds.random_best['3']);
+    } finally {
+      app.close();
+    }
+  });

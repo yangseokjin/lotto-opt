@@ -1,5 +1,5 @@
 'use strict';
-// 로또 최적화(lotto-opt) 실행 API. 시스템 관리자 전용.
+// 로또 최적화(lotto-opt) 실행·당첨 확인 API. 시스템 관리자 전용.
 //
 //   const { createLottoRouter } = require('./lottoRouter');
 //   app.use('/api/lotto', createLottoRouter({ db, guard: requireSystemAdmin }));
@@ -12,7 +12,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const PRESETS = ['to_be', 'as_is'];
+const PRESETS = ['to_be', 'as_is', 'spread']; // spread = 분산 우선 (엔진 v0.3, config/spread.yaml)
 const SET_SIZES = [30, 50];
 const MAX_LOG = 64 * 1024;
 
@@ -65,6 +65,7 @@ function createLottoRouter(options = {}) {
     pythonPath = process.env.LOTTO_PYTHON || (process.platform === 'win32' ? 'python' : 'python3'),
     lottoOptDir = process.env.LOTTO_OPT_DIR,
     timeoutMs = Number(process.env.LOTTO_TIMEOUT_MS) || 5 * 60 * 1000,
+    checkTimeoutMs = 60 * 1000,
     userOf = (req) => (req.user && (req.user.username || req.user.name)) || null,
   } = options;
   if (!db) throw new Error('createLottoRouter: db(better-sqlite3)가 필요합니다');
@@ -84,11 +85,44 @@ function createLottoRouter(options = {}) {
 
   let running = null; // 한 번에 하나만 계산한다 (CPU를 많이 쓴다)
 
+  // 짧은 엔진 명령(당첨 확인) 실행. 결과: { code, stdout, stderr, timedOut, error }
+  const runEngine = (args, limitMs) => new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    let child;
+    try {
+      child = spawn(pythonPath, args, {
+        cwd: lottoOptDir,
+        windowsHide: true,
+        env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
+      });
+    } catch (error) {
+      resolve({ error });
+      return;
+    }
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, limitMs);
+    child.stdout.on('data', (c) => { stdout = tail(stdout + c.toString('utf8'), 4 * MAX_LOG); });
+    child.stderr.on('data', (c) => { stderr = tail(stderr + c.toString('utf8'), MAX_LOG); });
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      resolve({ error });
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      resolve({ code, stdout, stderr, timedOut });
+    });
+  });
+
   router.get('/status', (req, res) => {
     res.json({
       running: Boolean(running),
       startedAt: running ? running.startedAt : null,
       configured: Boolean(lottoOptDir),
+      features: ['check'], // 화면이 서버 버전을 알아보는 데 쓴다
     });
   });
 
@@ -98,7 +132,7 @@ function createLottoRouter(options = {}) {
     const sets = body.sets == null ? 30 : Number(body.sets);
     let seed = null;
     if (!PRESETS.includes(preset)) {
-      return res.status(400).json({ error: '방식은 개선안(to_be) 또는 원안(as_is)만 고를 수 있어요.' });
+      return res.status(400).json({ error: '방식은 개선안(to_be), 원안(as_is), 분산 우선(spread) 중에서 골라 주세요.' });
     }
     if (!SET_SIZES.includes(sets)) {
       return res.status(400).json({ error: '세트 수는 30 또는 50만 고를 수 있어요.' });
@@ -230,10 +264,90 @@ function createLottoRouter(options = {}) {
     res.json({ run: toRun(row, true) });
   });
 
+  // 당첨 확인: 저장된 결과를 `cli.py check --json` 으로 회차(기본: 최신) 또는 직접 입력한 번호와 맞춰 본다.
+  // 몇 초면 끝나고 결과는 저장하지 않으므로 계산 중에도 쓸 수 있다.
+  router.post('/runs/:id/check', async (req, res) => {
+    const row = getRun.get(Number(req.params.id));
+    if (!row) return res.status(404).json({ error: '그 결과를 찾지 못했어요.' });
+    const body = req.body || {};
+    const args = [];
+    if (body.numbers != null) {
+      const numbers = Array.isArray(body.numbers) ? body.numbers.map(Number) : [];
+      const bonus = Number(body.bonus);
+      const valid = (n) => Number.isInteger(n) && n >= 1 && n <= 45;
+      if (numbers.length !== 6 || !numbers.every(valid) || new Set(numbers).size !== 6) {
+        return res.status(400).json({ error: '당첨번호는 1~45 사이 서로 다른 숫자 6개로 넣어 주세요.' });
+      }
+      if (!valid(bonus) || numbers.includes(bonus)) {
+        return res.status(400).json({ error: '보너스 번호는 1~45 사이이고 당첨번호 6개와 달라야 해요.' });
+      }
+      args.push('--numbers', numbers.join(','), '--bonus', String(bonus));
+    } else if (body.draw != null && body.draw !== '') {
+      const draw = Number(body.draw);
+      if (!Number.isInteger(draw) || draw < 1 || draw > 99999) {
+        return res.status(400).json({ error: '회차는 1 이상의 정수로 넣어 주세요. 비워 두면 최신 회차와 비교해요.' });
+      }
+      args.push('--draw', String(draw));
+    }
+    if (!lottoOptDir) {
+      return res.status(500).json({ error: '로또 엔진 폴더(LOTTO_OPT_DIR)가 설정되지 않았어요.' });
+    }
+
+    let dir = null;
+    try {
+      dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lotto-check-'));
+      const file = path.join(dir, 'portfolio.json');
+      fs.writeFileSync(file, row.result_json, 'utf8');
+      const out = await runEngine(['cli.py', 'check', file, '--json', ...args], checkTimeoutMs);
+      if (out.error) {
+        const missing = out.error.code === 'ENOENT';
+        return res.status(500).json({
+          error: missing
+            ? '파이썬 또는 로또 엔진 폴더를 찾지 못했어요. LOTTO_PYTHON, LOTTO_OPT_DIR 설정을 확인해 주세요.'
+            : '로또 엔진을 실행하지 못했어요.',
+          detail: String(out.error.message || out.error),
+        });
+      }
+      if (out.timedOut) {
+        return res.status(504).json({ error: '당첨번호를 받아 오는 데 너무 오래 걸려요. 잠시 뒤 다시 해 보세요.' });
+      }
+      if (out.code !== 0) {
+        // 엔진이 check 명령을 모르면 argparse 가 "invalid choice: 'check'" 로 끝난다
+        if (/invalid choice: '?check'?/.test(out.stderr)) {
+          return res.status(501).json({
+            error: '로또 엔진에 당첨 확인 기능이 아직 없어요. 엔진을 당첨 확인이 들어간 버전으로 바꿔 주세요 (APPLY.md "당첨 확인 추가").',
+          });
+        }
+        // 회차가 데이터에 없음 같은 안내는 엔진이 마지막 줄에 한국어로 남긴다
+        const lines = out.stderr.trim().split(/\r?\n/).filter(Boolean);
+        return res.status(422).json({
+          error: lines.length ? lines[lines.length - 1] : '당첨 확인 중 오류가 났어요.',
+          detail: tail(out.stderr + out.stdout, 2000),
+        });
+      }
+      let check;
+      try {
+        check = JSON.parse(out.stdout);
+      } catch (err) {
+        return res.status(500).json({ error: '당첨 확인 결과를 읽지 못했어요.', detail: tail(out.stdout + out.stderr, 2000) });
+      }
+      return res.json({ check });
+    } catch (err) {
+      return res.status(500).json({ error: '당첨 확인 중 오류가 났어요.', detail: String(err.message || err) });
+    } finally {
+      if (dir) fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   router.delete('/runs/:id', (req, res) => {
     const info = deleteRun.run(Number(req.params.id));
     if (!info.changes) return res.status(404).json({ error: '그 결과를 찾지 못했어요.' });
     res.json({ ok: true });
+  });
+
+  // 이 라우터가 모르는 /api/lotto 경로는 여기서 한국어로 답한다 (인트라넷 공통 404와 구별하려고)
+  router.use((req, res) => {
+    res.status(404).json({ error: `로또 API에 없는 경로예요: ${req.method} ${req.baseUrl}${req.path}` });
   });
 
   // 깨진 JSON 요청은 HTML 오류 페이지 대신 JSON 으로 답한다
