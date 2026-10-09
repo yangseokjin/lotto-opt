@@ -119,6 +119,11 @@ def render(sets, a, cfg, stages, relaxed, checks, source, meta=None):
         "포트폴리오 구조(목표 분포, 세트 간 겹침, 번호를 고르게 쓰기)를 최적화합니다.",
         "",
     ]
+    if meta.get("target_draw"):
+        stale = meta["target_draw"] > a.last + 1
+        out += [f"이 번호는 **제{meta['target_draw']}회**용입니다." +
+                (f" 주의: 제{a.last + 1}회 추첨은 끝났지만 그 당첨번호를 아직 받지 못해 제{a.last}회까지로 계산했습니다."
+                 if stale else ""), ""]
     if meta.get("command"):
         out += [f"같은 결과 다시 만들기: `{meta['command']}`", ""]
     out += [
@@ -170,7 +175,7 @@ def to_json(sets, a, sm, stages, relaxed, meta=None, odds=None):
     keep = {k: v for k, v in sm.items() if k not in ("counts", "cats")}
     keep["group_mix"] = {"-".join(map(str, k)): v for k, v in keep["group_mix"].items()}
     return json.dumps({"version": __version__, "seed": meta.get("seed"), "preset": meta.get("preset"),
-                       "profile": meta.get("profile"), "range": [a.first, a.last], "hot": a.hot, "warm": a.warm,
+                       "profile": meta.get("profile"), "range": [a.first, a.last], "target_draw": meta.get("target_draw"), "hot": a.hot, "warm": a.warm,
                        "cold": a.cold, "carry": a.carry, "sets": sets, "stages": stages, "relaxed": relaxed,
                        "summary": keep, "odds": odds}, ensure_ascii=False, indent=1, default=str)
 

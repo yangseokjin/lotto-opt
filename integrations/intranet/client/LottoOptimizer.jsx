@@ -328,6 +328,7 @@ function RunResult({ run, onCopied, checkRequest }) {
         <div>
           <div className="lo-result-title">
             제{run.drawFrom}회 ~ 제{run.drawTo}회 기준 · {PRESET_LABEL[run.preset] || run.preset} · {r.sets.length}세트
+            {` · 제${r.target_draw || run.drawTo + 1}회용`}
           </div>
           <div className="lo-muted">
             시드 {r.seed} · {formatDate(run.createdAt)}

@@ -58,8 +58,11 @@ def run_one(path, cfg, note, args, quiet=False):
     problems = data.validate(draws[-cfg["data"]["window"]:])
     if problems:
         sys.exit("데이터 검증 실패: " + "; ".join(problems))
-    if draws[-1]["draw_no"] < data.expected_latest() and not source.startswith("cache"):
-        print(f"  주의: 최신 회차는 제{data.expected_latest()}회인데 받은 데이터는 제{draws[-1]['draw_no']}회까지입니다.")
+    # 추첨은 끝났는데 그 당첨번호를 아직 못 받았으면, 이 결과는 다음 추첨(그다음 회차)용이다
+    target = max(draws[-1]["draw_no"], data.expected_latest()) + 1
+    if draws[-1]["draw_no"] < data.expected_latest():
+        print(f"  주의: 최신 회차는 제{data.expected_latest()}회인데 받은 데이터는 제{draws[-1]['draw_no']}회까지입니다. "
+              f"이 결과는 제{target}회용입니다.")
     seed = cfg["portfolio"]["seed"]
     print(f"[{cfg['name']}] 데이터: 제{draws[-1]['draw_no']}회까지 ({source}) · {cfg['portfolio']['sets']}세트 · 시드 {seed}")
     if note:
@@ -71,7 +74,7 @@ def run_one(path, cfg, note, args, quiet=False):
         sys.exit(f"[{cfg['name']}] {e} 설정의 제약이 서로 맞지 않는지 확인해 주세요.")
     seconds = time.time() - t
     checks = validate.validate(sets, final_cfg, a)
-    meta = {"seed": seed, "preset": cfg["name"], "profile": note, "seconds": seconds,
+    meta = {"seed": seed, "preset": cfg["name"], "profile": note, "seconds": seconds, "target_draw": target,
             "command": command(path, cfg, args)}
     text, sm = report.render(sets, a, final_cfg, stages, relaxed, checks, source, meta)
     o = odds.portfolio(sets)
@@ -108,7 +111,7 @@ def run_check(args):
             sys.exit("회차 데이터가 없습니다. --numbers/--bonus 로 직접 입력해 주세요.")
         # 회차를 안 주면 이 포트폴리오가 노린 회차(분석 마지막 회차의 다음 회차)와 비교한다.
         # 분석에 들어간 회차와 비교하면 이월수 규칙 때문에 구조상 당첨이 나올 수 없다.
-        target = meta["range"][1] + 1 if meta.get("range") else None
+        target = check.target_draw(meta)
         no = args.draw if args.draw is not None else (target or draws[-1]["draw_no"])
         draw = next((d for d in draws if d["draw_no"] == no), None)
         if draw is None and args.draw is None and target and target > draws[-1]["draw_no"]:
