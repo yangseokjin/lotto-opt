@@ -29,7 +29,7 @@ def test_different_seeds_give_different_portfolios(draws):
     assert len(s1 & s2) <= 2
 
 
-@pytest.mark.parametrize("preset,sets", [("to_be", 30), ("as_is", 30), ("to_be", 50), ("as_is", 50)])
+@pytest.mark.parametrize("preset,sets", [("to_be", 30), ("to_be", 50)])
 def test_spec_sizes(draws, preset, sets):
     out, a, cfg, stages = _run(draws, preset, sets, seed=0)
     assert len(out) == sets

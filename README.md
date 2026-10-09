@@ -7,11 +7,10 @@
 ## 실행
 ```
 python3 -m pip install -r requirements.txt
-python3 cli.py run --config config/to_be.yaml                # 개선안 30세트 (실행할 때마다 새 조합)
+python3 cli.py run                                           # 개선안(config/to_be.yaml) 30세트 (실행할 때마다 새 조합)
 python3 cli.py run --config config/to_be.yaml --sets 50      # 50세트 (기획서의 50세트 기준 자동 적용)
 python3 cli.py run --config config/to_be.yaml --seed 7       # 시드를 정하면 언제 돌려도 같은 결과
-python3 cli.py run --config config/as_is.yaml                # 원본 기획서 규칙
-python3 cli.py compare --config config/as_is.yaml --config config/to_be.yaml --sets 50   # 같은 데이터·같은 시드로 비교
+python3 cli.py compare --config config/to_be.yaml --config config/spread.yaml --sets 50   # 같은 데이터·같은 시드로 비교
 python3 cli.py run --config config/to_be.yaml --effort 2     # 탐색량 두 배 (보통 1이면 충분)
 python3 cli.py run --config config/to_be.yaml --set targets.odd_even=spec   # 설정 파일을 고치지 않고 항목 바꾸기
 python3 cli.py run --config config/spread.yaml               # 분산 우선 50세트: 하나라도 5등 이상일 확률 약 80%

@@ -11,7 +11,7 @@ def _portfolio(cfg, a, seed):
     return sets
 
 
-@pytest.mark.parametrize("preset,sets", [("to_be", 12), ("to_be", 30), ("as_is", 30), ("spread", 30)])
+@pytest.mark.parametrize("preset,sets", [("to_be", 12), ("to_be", 30), ("spread", 30)])
 def test_python_values_match_cp_sat(cfg_and_analysis, preset, sets):
     cfg, a = cfg_and_analysis(preset, sets)
     portfolio = _portfolio(cfg, a, f"t{sets}")
@@ -31,7 +31,7 @@ def test_python_values_match_cp_sat(cfg_and_analysis, preset, sets):
 
 
 def test_distribution_bound_is_lower_bound(cfg_and_analysis):
-    for preset, sets in (("to_be", 30), ("to_be", 50), ("as_is", 30)):
+    for preset, sets in (("to_be", 30), ("to_be", 50), ("spread", 30)):
         cfg, a = cfg_and_analysis(preset, sets)
         lb = objective.bound("distribution_error", a, cfg["rules"], sets)
         for seed in range(3):

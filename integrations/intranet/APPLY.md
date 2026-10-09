@@ -107,7 +107,7 @@
 1. 엔진: `D:\ClAUDE\lotto-opt` 에서 `git status` 로 고친 파일이 없는지 보고, `git fetch origin` → `git checkout claude/project-thread-4fb3yx` → `git pull`. PR #1·#3·#5 가 main에 합쳐졌으면 main을 쓴다.
    - v0.3은 numpy가 필요하다: `.venv\Scripts\python -m pip install -r requirements.txt`.
    - 확인: `.venv\Scripts\python cli.py run --config config/spread.yaml --sets 50 --seed 11 --out <임시 폴더>` 가 1분 안팎에 `저장:` 을 출력하면 된다.
-   - 기존 to_be/as_is 결과는 v0.3에서도 같은 방식으로 계산된다. 리포트에 당첨 확률 계산 줄이 더 붙는다.
+   - 기존 to_be 결과는 v0.3에서도 같은 방식으로 계산된다. 리포트에 당첨 확률 계산 줄이 더 붙는다.
 2. 키트: 키트 사본에서 `git fetch origin` 후 `claude/project-thread-8wizxf` 를 다시 받는다.
 3. 서버와 화면: "당첨 확인 추가"의 3~4단계와 같다. 운영 폴더의 `lottoRouter.js` 와 `LottoOptimizer.jsx` 를 새 파일로 바꾸고, 처음 붙일 때 맞춘 부분(가져오는 이름, `userOf`, `api` 가져오기, 경로, CSS)을 다시 맞춘다.
 4. 시험: `node --test test/lottoRouter.test.js` 20개 통과 (`LOTTO_REAL_OPT_DIR` 를 주면 진짜 엔진으로 분산 우선 50세트까지 시험한다). 화면은 임시 폴더로 빌드해 본다.

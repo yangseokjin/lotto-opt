@@ -26,8 +26,13 @@ def test_run_without_seed_picks_one(tmp_path):
 
 
 def test_compare_uses_one_seed(tmp_path):
-    code = cli.main(_args(tmp_path, "compare", "--config", os.path.join(ROOT, "config", "as_is.yaml"),
-                          "--config", os.path.join(ROOT, "config", "to_be.yaml"), "--sets", "12", "--seed", "4"))
+    code = cli.main(_args(tmp_path, "compare", "--config", os.path.join(ROOT, "config", "to_be.yaml"),
+                          "--config", os.path.join(ROOT, "config", "spread.yaml"), "--sets", "12", "--seed", "4"))
     assert code == 0
-    assert (tmp_path / "compare_as_is_vs_to_be_12sets_seed4.md").exists()
-    assert (tmp_path / "as_is_12sets_seed4.md").exists() and (tmp_path / "to_be_12sets_seed4.md").exists()
+    assert (tmp_path / "compare_to_be_vs_spread_12sets_seed4.md").exists()
+    assert (tmp_path / "to_be_12sets_seed4.md").exists() and (tmp_path / "spread_12sets_seed4.md").exists()
+
+
+def test_run_defaults_to_to_be(tmp_path):
+    assert cli.main(_args(tmp_path, "run", "--sets", "12", "--seed", "5")) == 0
+    assert (tmp_path / "to_be_12sets_seed5.json").exists()

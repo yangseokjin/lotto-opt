@@ -15,7 +15,6 @@ def test_profile_30_and_50_follow_spec():
     assert c50["rules"]["carry_over"]["per_number_uses"] == [7, 10]
     assert c50["rules"]["coverage"] == {"total": 43, "hot": 13, "warm": 16, "cold": 13}
     assert c50["rules"]["mean_reversion"]["min_sets_each"] == 8
-    assert make_cfg("as_is", 50)["rules"]["carry_over"]["per_number_uses"] == [7, 10]
 
 
 def test_profile_scales_for_other_sizes():
