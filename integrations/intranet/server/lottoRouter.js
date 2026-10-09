@@ -264,7 +264,7 @@ function createLottoRouter(options = {}) {
     res.json({ run: toRun(row, true) });
   });
 
-  // 당첨 확인: 저장된 결과를 `cli.py check --json` 으로 회차(기본: 최신) 또는 직접 입력한 번호와 맞춰 본다.
+  // 당첨 확인: 저장된 결과를 `cli.py check --json` 으로 회차(기본: 그 결과가 노린 회차 = 분석 마지막 회차 + 1, 추첨 전이면 엔진이 안내 문구로 끝난다) 또는 직접 입력한 번호와 맞춰 본다.
   // 몇 초면 끝나고 결과는 저장하지 않으므로 계산 중에도 쓸 수 있다.
   router.post('/runs/:id/check', async (req, res) => {
     const row = getRun.get(Number(req.params.id));
@@ -285,7 +285,7 @@ function createLottoRouter(options = {}) {
     } else if (body.draw != null && body.draw !== '') {
       const draw = Number(body.draw);
       if (!Number.isInteger(draw) || draw < 1 || draw > 99999) {
-        return res.status(400).json({ error: '회차는 1 이상의 정수로 넣어 주세요. 비워 두면 최신 회차와 비교해요.' });
+        return res.status(400).json({ error: '회차는 1 이상의 정수로 넣어 주세요. 비워 두면 이 결과가 노린 회차와 비교해요.' });
       }
       args.push('--draw', String(draw));
     }

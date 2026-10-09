@@ -154,7 +154,7 @@ function CheckResult({ check, drawTo }) {
       </div>
       {inSample ? (
         <div className="lo-muted">
-          참고: 이 결과는 제{drawTo}회까지의 당첨번호로 만들어서, 제{draw.draw_no}회는 이미 계산에 들어간 회차예요.
+          {check.note || `참고: 이 결과는 제${drawTo}회까지의 당첨번호로 만들어서, 제${draw.draw_no}회는 이미 계산에 들어간 회차예요.`}
         </div>
       ) : null}
       <div className="lo-rank-row">
@@ -241,7 +241,7 @@ function CheckPanel({ run, request }) {
     }
   };
 
-  // "지난 결과"의 당첨 확인 버튼을 누르면 최신 회차로 바로 확인한다
+  // "지난 결과"의 당첨 확인 버튼을 누르면 그 결과가 노린 회차(분석 마지막 회차 + 1)로 바로 확인한다
   useEffect(() => {
     if (!request) return;
     if (box.current && box.current.scrollIntoView) box.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -287,7 +287,7 @@ function CheckPanel({ run, request }) {
               min="1"
               step="1"
               inputMode="numeric"
-              placeholder="비우면 최신 회차"
+              placeholder="비우면 이 결과가 노린 회차"
               value={draw}
               onChange={(e) => setDraw(e.target.value)}
               disabled={busy}

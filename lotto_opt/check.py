@@ -63,6 +63,19 @@ def check(sets, numbers, bonus):
     return {"numbers": numbers, "bonus": bonus, "results": rows, "summary": summary}
 
 
+def in_sample_note(draw, meta):
+    """이미 분석에 들어간 회차와 비교할 때의 안내 문구 (아니면 None)."""
+    last = (meta or {}).get("range", [None, None])[1] if (meta or {}).get("range") else None
+    if not draw or last is None or draw["draw_no"] > last:
+        return None
+    text = (f"이 포트폴리오는 제{last}회까지의 당첨번호로 만든 제{last + 1}회용 번호라서, "
+            f"제{draw['draw_no']}회는 이미 계산에 들어간 지난 회차입니다.")
+    if draw["draw_no"] == last:
+        text += (f" 특히 제{last}회 번호는 '이월수'라서 세트마다 최대 2개까지만 넣도록 만들었기 때문에 "
+                 "이 회차와는 3개 이상 맞는 세트(5등 이상)가 나올 수 없습니다.")
+    return text
+
+
 def render(res, draw=None, meta=None):
     """사람이 읽는 결과 (마크다운)."""
     meta = meta or {}
@@ -71,9 +84,9 @@ def render(res, draw=None, meta=None):
     lines = [f"# 당첨 확인: {title}", ""]
     if meta.get("preset"):
         lines.append(f"- 포트폴리오: {meta['preset']} · {sm['sets']}세트 · 시드 {meta.get('seed')}")
-    if draw and meta.get("range") and draw["draw_no"] <= meta["range"][1]:
-        lines.append(f"- 참고: 이 포트폴리오는 제{meta['range'][1]}회까지의 데이터로 만들어서, "
-                     f"제{draw['draw_no']}회는 이미 분석에 들어간 회차입니다.")
+    note = in_sample_note(draw, meta)
+    if note:
+        lines.append(f"- 주의: {note}")
     lines += [f"- 당첨번호: {f2(res['numbers'])} + 보너스 {res['bonus']:02d}",
               f"- 최고 등수: {RANK_LABEL[sm['best_rank']]}",
               "- 등수별: " + " / ".join(f"{RANK_LABEL[k]} {sm['by_rank'][str(k)]}" for k in RANKS)
@@ -87,5 +100,8 @@ def render(res, draw=None, meta=None):
 
 
 def to_json(res, draw=None, meta=None):
-    out = {"draw": draw, "portfolio": meta or {}, **res}
+    meta = meta or {}
+    target = meta["range"][1] + 1 if meta.get("range") else None
+    out = {"draw": draw, "portfolio": meta, "target_draw": target,
+           "in_sample": bool(in_sample_note(draw, meta)), "note": in_sample_note(draw, meta), **res}
     return json.dumps(out, ensure_ascii=False, indent=1)
