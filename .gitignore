@@ -1,3 +1,4 @@
 out/
 data/draws.json
 __pycache__/
+.pytest_cache/

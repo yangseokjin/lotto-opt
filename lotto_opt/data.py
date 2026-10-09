@@ -14,7 +14,7 @@ FIRST_DRAW = dt.date(2002, 12, 7)
 
 
 def _get_json(url, timeout=20):
-    req = urllib.request.Request(url, headers={"User-Agent": "lotto-opt/0.1"})
+    req = urllib.request.Request(url, headers={"User-Agent": "lotto-opt/0.2"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
 
@@ -29,12 +29,11 @@ def _normalize(rec):
     return rec  # 이미 정규화됨
 
 
-def expected_latest(today=None):
-    """오늘 기준 추첨이 끝났어야 할 최신 회차 (토요일 20:45 KST 추첨)."""
-    now = dt.datetime.utcnow() + dt.timedelta(hours=9)
-    today = today or now.date()
-    n = (today - FIRST_DRAW).days // 7 + 1
-    if today.weekday() == 5 and (now.hour, now.minute) < (21, 0):
+def expected_latest(now=None):
+    """지금(한국 시간) 기준 추첨이 끝났어야 할 최신 회차 (토요일 20:45 KST 추첨)."""
+    now = now or dt.datetime.now(dt.timezone.utc).astimezone(dt.timezone(dt.timedelta(hours=9)))
+    n = (now.date() - FIRST_DRAW).days // 7 + 1
+    if now.weekday() == 5 and (now.hour, now.minute) < (21, 0):
         n -= 1
     return n
 
@@ -81,7 +80,13 @@ def load_draws(cache_path, source="auto"):
             if source == "official":
                 raise
     if used is None:
-        draws, used = sorted((_normalize(r) for r in _get_json(MIRROR, 60)), key=lambda d: d["draw_no"]), "mirror"
+        try:
+            draws, used = sorted((_normalize(r) for r in _get_json(MIRROR, 60)), key=lambda d: d["draw_no"]), "mirror"
+        except Exception:
+            if not cached or source == "mirror":
+                raise
+            return cached, "cache (최신 데이터를 받지 못함)"
+    os.makedirs(os.path.dirname(cache_path) or ".", exist_ok=True)
     with open(cache_path, "w", encoding="utf-8") as f:
         json.dump(draws, f, ensure_ascii=False)
     return draws, used
