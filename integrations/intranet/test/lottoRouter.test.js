@@ -61,6 +61,7 @@ test('잘못된 입력은 400', async () => {
   const app = await startApp();
   try {
     assert.strictEqual((await app.call('POST', '/run', { preset: 'x' })).status, 400);
+    assert.strictEqual((await app.call('POST', '/run', { preset: 'as_is' })).status, 400, '원안(as_is)은 없앴다');
     assert.strictEqual((await app.call('POST', '/run', { sets: 40 })).status, 400);
     assert.strictEqual((await app.call('POST', '/run', { seed: -3 })).status, 400);
     assert.strictEqual((await app.call('POST', '/run', { seed: 1.5 })).status, 400);
@@ -111,11 +112,11 @@ test('시드를 안 주면 엔진이 고른 시드를 기록', async () => {
   process.env.FAKE_MODE = 'ok';
   const app = await startApp();
   try {
-    const r = await app.call('POST', '/run', { preset: 'as_is' });
+    const r = await app.call('POST', '/run', { preset: 'to_be' });
     assert.strictEqual(r.status, 200);
     assert.strictEqual(r.data.run.seed, 4242);
     assert.strictEqual(r.data.run.sets, 30);
-    assert.strictEqual(r.data.run.preset, 'as_is');
+    assert.strictEqual(r.data.run.preset, 'to_be');
   } finally {
     app.close();
   }

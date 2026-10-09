@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api';
 
-const PRESET_LABEL = { to_be: '개선안', as_is: '원안', spread: '분산 우선' };
+const PRESET_LABEL = { to_be: '개선안', as_is: '원안', spread: '분산 우선' }; // as_is: 예전에 저장된 결과 표시용 (새로 실행은 안 됨)
 const ODDS_NOTE =
   '모든 조합의 1등 확률은 1/8,145,060으로 같습니다. 이 페이지는 여러 세트에 번호를 고르게 나눠 담을 뿐, 당첨 확률을 높이지 않습니다.';
 const RUN_TIMEOUT_MS = 10 * 60 * 1000; // 계산이 20~60초 걸려서 기본 요청 시간 제한을 쓰지 않는다
@@ -549,7 +549,6 @@ export default function LottoOptimizer() {
             disabled={running}
           >
             <option value="to_be">개선안</option>
-            <option value="as_is">원안 (기획서 그대로)</option>
             <option value="spread">분산 우선 (세트끼리 덜 겹치게)</option>
           </select>
         </label>

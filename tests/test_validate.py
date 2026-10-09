@@ -25,7 +25,7 @@ def test_set_rule_violations_are_detected(cfg_and_analysis):
 
 def test_pool_filter_agrees_with_validator(cfg_and_analysis):
     """후보 풀의 빠른 검사(pool.set_attrs)와 독립 검증기(validate)가 같은 판정을 내리는지 무작위 세트로 확인."""
-    for preset in ("to_be", "as_is"):
+    for preset in ("to_be", "spread"):
         cfg, a = cfg_and_analysis(preset)
         R = cfg["rules"]
         combos = set(group_combos(R["group_mix"]))

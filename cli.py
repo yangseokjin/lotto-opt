@@ -1,6 +1,6 @@
 """사용법:
-  python3 cli.py run --config config/to_be.yaml [--sets 30|50] [--seed N] [--set 점.경로=값] [--effort 1]
-  python3 cli.py compare --config config/as_is.yaml --config config/to_be.yaml [--sets 50] [--seed N]
+  python3 cli.py run [--config config/to_be.yaml] [--sets 30|50] [--seed N] [--set 점.경로=값] [--effort 1]
+  python3 cli.py compare --config config/to_be.yaml --config config/spread.yaml [--sets 50] [--seed N]
   python3 cli.py check out/to_be_30sets_seed7.json [--draw 1243 | --numbers 1,2,3,4,5,6 --bonus 7] [--json]
   python3 cli.py odds out/to_be_30sets_seed7.json            # 하나라도 맞을 확률 (정확 계산)
   python3 cli.py backtest --config config/to_be.yaml --config config/spread.yaml [--draws 20] [--groups 500]
@@ -156,7 +156,10 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
     for name, help_ in (("run", "포트폴리오 최적화 실행"), ("compare", "여러 프리셋을 같은 데이터·같은 시드로 비교")):
         r = sub.add_parser(name, help=help_)
-        r.add_argument("--config", required=True, action="append" if name == "compare" else "store")
+        if name == "compare":
+            r.add_argument("--config", required=True, action="append")
+        else:
+            r.add_argument("--config", help="설정 파일 (기본: config/to_be.yaml)")
         r.add_argument("--sets", type=int, help="세트 수 (30, 50은 기획서 기준, 그 밖의 수는 가까운 기준을 비례 조정)")
         r.add_argument("--seed", type=int, help="같은 시드면 같은 결과. 생략하면 실행마다 새 시드")
         r.add_argument("--source", help="auto | official | mirror | cache")
@@ -196,6 +199,7 @@ def main(argv=None):
         return run_backtest(args)
 
     if args.cmd == "run":
+        args.config = args.config or os.path.relpath(os.path.join(ROOT, "config", "to_be.yaml"))
         cfg, note = prepare(args.config, args)
         res = run_one(args.config, cfg, note, args)
         return 1 if res["checks"]["sets"] or res["checks"]["global"] else 0

@@ -24,7 +24,7 @@ def test_ranking_tie_break(draws, cfg_and_analysis):
 
 def test_mean_reversion_weight_mode(cfg_and_analysis):
     _, forced = cfg_and_analysis("to_be")
-    _, weighted = cfg_and_analysis("as_is")
+    _, weighted = cfg_and_analysis("to_be", rules__mean_reversion={"mode": "weight", "candidates": 5, "bonus": 0.2})
     for n in weighted.long_absent:
         assert abs(weighted.weight[n] - forced.weight[n] - 0.2) < 1e-9
     assert set(forced.long_absent) <= set(forced.cold)
