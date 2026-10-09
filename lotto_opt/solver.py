@@ -68,7 +68,7 @@ def build(cfg, a, fixed=None, stages=None):
 
 
 def _opts(st):
-    return {k: v for k, v in st.items() if k in ("start",)}
+    return {k: v for k, v in st.items() if k in ("start", "weights")}
 
 
 @dataclass
@@ -182,7 +182,8 @@ def _stage(a, st, cur, cfg, effort, log, locks):
         cur, _ = search.improve(cur, cfg, a, st, locks, rng, ls_iters)
         best = value(cur)
     status = "OPTIMAL" if lb is not None and best <= lb else "FEASIBLE"
-    locks.append((st, best))  # 다음 단계에서 이 단계 결과를 지킨다
+    # 다음 단계에서 이 단계 결과를 지킨다. slack 을 주면 그만큼(단계 값 단위) 나빠져도 되게 풀어 준다
+    locks.append((st, best + st.get("slack", 0)))
     rec = {"name": name, "status": status, "value": best, "bound": lb,
            "seconds": round(time.time() - t, 1), "rounds": done}
     log(f"  [{name}] {status} 값={best} 하한={lb} (라운드 {done}, {rec['seconds']}s)")

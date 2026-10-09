@@ -47,7 +47,7 @@ class Portfolio:
             for j in range(i + 1, self.S):
                 self.ov[i][j] = self.ov[j][i] = bin(self.mask[i] & self.mask[j]).count("1")
         ov_stage = next((st for st in cfg["objective"] if st["name"] == "overlap"), {})
-        self.W = _overlap_weights(self.S, ov_stage.get("start", 2), self.mc)
+        self.W = _overlap_weights(self.S, ov_stage.get("start", 2), self.mc, ov_stage.get("weights", "lex"))
         self.ge = {k: sum(self.ov[i][j] >= k for i in range(self.S) for j in range(i + 1, self.S)) for k in self.W}
         # 같은 그룹·홀짝·저고·이월수 여부인 번호끼리 바꾸면 세트의 범주(분포 목표)가 그대로 유지된다
         key = lambda n: (n in a.hot_set, n in a.warm_set, n % 2, n <= 22, n in a.carry_set)

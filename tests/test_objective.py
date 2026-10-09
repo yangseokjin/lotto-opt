@@ -11,7 +11,7 @@ def _portfolio(cfg, a, seed):
     return sets
 
 
-@pytest.mark.parametrize("preset,sets", [("to_be", 12), ("to_be", 30), ("as_is", 30)])
+@pytest.mark.parametrize("preset,sets", [("to_be", 12), ("to_be", 30), ("as_is", 30), ("spread", 30)])
 def test_python_values_match_cp_sat(cfg_and_analysis, preset, sets):
     cfg, a = cfg_and_analysis(preset, sets)
     portfolio = _portfolio(cfg, a, f"t{sets}")
@@ -27,7 +27,7 @@ def test_python_values_match_cp_sat(cfg_and_analysis, preset, sets):
             sv.parameters.num_workers = 1
             assert sv.Solve(ctx.m) == cp_model.OPTIMAL
             got = round(sv.ObjectiveValue())
-        assert got == objective.VALUES[st["name"]](portfolio, a, cfg["rules"]), st["name"]
+        assert got == objective.VALUES[st["name"]](portfolio, a, cfg["rules"], **solver._opts(st)), st["name"]
 
 
 def test_distribution_bound_is_lower_bound(cfg_and_analysis):
@@ -56,3 +56,12 @@ def test_family_bound_respects_rounding_and_carry_window():
     # 목표 없는 범주에는 남는 세트를 오차 없이 둘 수 있고, 나올 수 없는 범주의 목표는 그대로 오차가 된다
     assert objective._family_bound(5, {"a": 300}, ["a", "b"]) == 0
     assert objective._family_bound(5, {"a": 300, "z": 200}, ["a", "b"]) == 200
+
+
+def test_hit_weights_follow_exact_joint_win_counts():
+    # 두 세트가 k개 공유할 때 같은 회차에 둘 다 3개 이상 맞는 추첨 수 (전체 8,145,060개 중, 직접 세어 확인한 값)
+    assert [objective._both_win(k) for k in range(7)] == [400, 3700, 13900, 31470, 60486, 109770, 194130]
+    w = objective._overlap_weights(30, 2, 3, "hit")
+    assert w == {1: 33, 2: 102, 3: 176}
+    # 2개 공유 1쌍이 1개 공유 2쌍보다 나쁘다 (번호를 고르게 퍼뜨리는 쪽이 낫다)
+    assert w[1] + w[2] > 2 * w[1]

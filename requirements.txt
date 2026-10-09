@@ -1,3 +1,4 @@
 # 같은 시드로 같은 결과를 내려면 같은 OR-Tools 버전이어야 해서 고정해 둡니다
 ortools==9.15.6755
 pyyaml>=6
+numpy>=2.0               # 정확한 당첨 확률 계산 (np.bitwise_count)

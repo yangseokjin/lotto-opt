@@ -140,21 +140,39 @@ def distribution_error_bound(a, S, R):
 
 # ---- 2) 교집합 ----
 
-def _overlap_weights(S, start, mc):
+def _both_win(k):
+    """번호 k개를 공유하는 두 세트가 같은 회차에 둘 다 3개 이상 맞는 추첨 결과 수 (전체 8,145,060개 중)."""
+    c, o, r = k, 6 - k, 33 + k  # 공통, 각 세트에만 있는 번호, 나머지
+    return sum(math.comb(c, x) * math.comb(o, y) * math.comb(o, z) * math.comb(r, 6 - x - y - z)
+               for x in range(c + 1) for y in range(o + 1) for z in range(o + 1)
+               if 0 <= 6 - x - y - z <= r and x + y >= 3 and x + z >= 3)
+
+
+def _overlap_weights(S, start, mc, weights="lex"):
+    """{k: 교집합 k개 이상인 쌍 하나당 가중치}.
+
+    lex: k가 클수록 훨씬 큰 가중치 (사전식: 최대 교집합 → 그 크기 쌍 수 → … → start개 공유 쌍 수)
+    hit: 두 세트의 당첨이 같은 회차에 겹치는 정도 (_both_win). 이 합이 작을수록 당첨이 여러 회차로
+         퍼져서 '30세트 중 하나라도 맞을 확률'이 커진다. 1개 공유 쌍까지 센다.
+    """
+    if weights == "hit":
+        cost = [round((_both_win(k) - _both_win(0)) / 100) for k in range(mc + 1)]
+        return {k: cost[k] - cost[k - 1] for k in range(1, mc + 1)}
     P = S * (S - 1) // 2
     return {k: (P + 1) ** (k - start) for k in range(start, mc + 1)}
 
 
-def overlap(ctx, start=2, **_):
-    """세트 쌍 교집합을 큰 것부터 사전식으로 줄인다.
+def overlap(ctx, start=2, weights="lex", **_):
+    """세트 쌍 교집합을 줄인다.
 
-    교집합 k개 이상인 쌍 수를 k가 클수록 훨씬 큰 가중치로 더한다. 즉 최대 교집합 크기를 먼저 줄이고,
+    lex(기본): 교집합 k개 이상인 쌍 수를 k가 클수록 훨씬 큰 가중치로 더한다. 즉 최대 교집합 크기를 먼저 줄이고,
     그다음 그 크기의 쌍 수를 줄이고, 마지막으로 start개(기본 2개, 같은 번호 쌍이 두 세트에 나온 경우)
     공유하는 쌍 수를 줄인다.
+    hit: 공유 개수별로 '두 세트가 같은 회차에 함께 맞는 확률'만큼 벌점을 준다 (_overlap_weights 참고).
     """
     m, mc = ctx.m, ctx.rules["overlap"]["max_common"]
     pen = []
-    for k, weight in _overlap_weights(ctx.S, start, mc).items():
+    for k, weight in _overlap_weights(ctx.S, start, mc, weights).items():
         level = []
         for c in ctx.pair_common:
             if isinstance(c, int):  # 고정 세트끼리의 쌍
@@ -167,9 +185,9 @@ def overlap(ctx, start=2, **_):
     return sum(pen)
 
 
-def overlap_value(sets, a, R, start=2, **_):
+def overlap_value(sets, a, R, start=2, weights="lex", **_):
     inter = [len(set(p) & set(q)) for p, q in itertools.combinations(sets, 2)]
-    W = _overlap_weights(len(sets), start, R["overlap"]["max_common"])
+    W = _overlap_weights(len(sets), start, R["overlap"]["max_common"], weights)
     return sum(w * sum(c >= k for c in inter) for k, w in W.items())
 
 
