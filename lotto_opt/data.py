@@ -38,6 +38,11 @@ def expected_latest(now=None):
     return n
 
 
+def draw_date(no):
+    """회차의 추첨일 (매주 토요일)."""
+    return FIRST_DRAW + dt.timedelta(weeks=no - 1)
+
+
 def validate(draws):
     problems = []
     for prev, cur in zip(draws, draws[1:]):

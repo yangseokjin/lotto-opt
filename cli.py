@@ -1,7 +1,7 @@
 """사용법:
   python3 cli.py run [--config config/to_be.yaml] [--sets 30|50] [--seed N] [--set 점.경로=값] [--effort 1]
   python3 cli.py compare --config config/to_be.yaml --config config/spread.yaml [--sets 50] [--seed N]
-  python3 cli.py check out/to_be_30sets_seed7.json [--draw 1243 | --numbers 1,2,3,4,5,6 --bonus 7] [--json]
+  python3 cli.py check out/to_be_30sets_seed7.json [--draw 1245 | --numbers 1,2,3,4,5,6 --bonus 7] [--json]
   python3 cli.py odds out/to_be_30sets_seed7.json            # 하나라도 맞을 확률 (정확 계산)
   python3 cli.py backtest --config config/to_be.yaml --config config/spread.yaml [--draws 20] [--groups 500]
 
@@ -106,8 +106,14 @@ def run_check(args):
         draws, _ = data.load_draws(args.data, args.source or "auto")
         if not draws:
             sys.exit("회차 데이터가 없습니다. --numbers/--bonus 로 직접 입력해 주세요.")
-        no = args.draw if args.draw is not None else draws[-1]["draw_no"]
+        # 회차를 안 주면 이 포트폴리오가 노린 회차(분석 마지막 회차의 다음 회차)와 비교한다.
+        # 분석에 들어간 회차와 비교하면 이월수 규칙 때문에 구조상 당첨이 나올 수 없다.
+        target = meta["range"][1] + 1 if meta.get("range") else None
+        no = args.draw if args.draw is not None else (target or draws[-1]["draw_no"])
         draw = next((d for d in draws if d["draw_no"] == no), None)
+        if draw is None and args.draw is None and target and target > draws[-1]["draw_no"]:
+            sys.exit(f"이 결과는 제{target}회({data.draw_date(target):%Y-%m-%d} 토요일 추첨)용 번호예요. "
+                     "아직 추첨 전이거나 당첨번호가 올라오지 않았어요. 추첨 뒤(토요일 21시 이후)에 다시 확인해 주세요.")
         if draw is None:
             sys.exit(f"제{no}회 당첨번호가 데이터에 없습니다 (제{draws[0]['draw_no']}~{draws[-1]['draw_no']}회). "
                      "--numbers/--bonus 로 직접 입력해 주세요.")
@@ -170,7 +176,7 @@ def main(argv=None):
         r.add_argument("--data", default=os.path.join(ROOT, "data", "draws.json"), help="회차 데이터 캐시 파일")
     c = sub.add_parser("check", help="저장된 포트폴리오(JSON)의 당첨 확인")
     c.add_argument("portfolio", help="run 이 저장한 out/*.json 파일")
-    c.add_argument("--draw", type=int, help="확인할 회차 (생략하면 데이터의 최신 회차)")
+    c.add_argument("--draw", type=int, help="확인할 회차 (생략하면 이 포트폴리오가 노린 회차 = 분석 마지막 회차 + 1)")
     c.add_argument("--numbers", help="당첨번호 6개 직접 입력 (예: 1,2,3,4,5,6)")
     c.add_argument("--bonus", type=int, help="보너스 번호 (--numbers 와 함께)")
     c.add_argument("--json", action="store_true", help="결과를 JSON으로 출력 (다른 프로그램에서 읽을 때)")

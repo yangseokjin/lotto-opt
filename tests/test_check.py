@@ -66,7 +66,12 @@ def test_cli_check_by_draw(tmp_path, capsys):
 
 def test_cli_check_latest_and_manual(tmp_path, capsys):
     path = _portfolio(tmp_path)
+    # 회차를 안 주면 분석 마지막 회차(1123)의 다음 회차와 비교한다
     assert cli.main(["check", path, "--source", "cache", "--data", FIXTURE]) == 0
+    assert "제1124회" in capsys.readouterr().out
+    no_range = tmp_path / "old.json"
+    no_range.write_text(json.dumps({"sets": SETS}), encoding="utf-8")  # 분석 범위가 없는 옛 파일은 최신 회차
+    assert cli.main(["check", str(no_range), "--source", "cache", "--data", FIXTURE]) == 0
     assert "제1243회" in capsys.readouterr().out
     assert cli.main(["check", path, "--numbers", "3, 8, 17, 30, 33, 45", "--bonus", "28", "--json"]) == 0
     res = json.loads(capsys.readouterr().out)
@@ -94,4 +99,18 @@ def test_check_reads_run_output(tmp_path, capsys):
     assert cli.main(["check", str(out / "to_be_12sets_seed3.json"), "--draw", "1243",
                      "--source", "cache", "--data", FIXTURE]) == 0
     text = capsys.readouterr().out
-    assert "12세트" in text and "이미 분석에 들어간 회차" in text
+    assert "12세트" in text and "이미 계산에 들어간 지난 회차" in text and "나올 수 없습니다" in text
+    # 분석 마지막 회차와는 이월수 규칙(세트당 최대 2개) 때문에 3개 이상 맞는 세트가 구조상 없다
+    assert cli.main(["check", str(out / "to_be_12sets_seed3.json"), "--draw", "1243", "--json",
+                     "--source", "cache", "--data", FIXTURE]) == 0
+    res = json.loads(capsys.readouterr().out)
+    assert res["in_sample"] and res["target_draw"] == 1244
+    assert max(r["match_count"] for r in res["results"]) <= 2
+
+
+def test_cli_check_target_not_drawn_yet(tmp_path, capsys):
+    path = tmp_path / "p.json"  # 데이터 마지막 회차(1243)까지로 만든 결과 → 노린 회차 1244는 아직 없음
+    path.write_text(json.dumps({"preset": "to_be", "seed": 1, "range": [1144, 1243], "sets": SETS}), encoding="utf-8")
+    with pytest.raises(SystemExit) as e:
+        cli.main(["check", str(path), "--source", "cache", "--data", FIXTURE])
+    assert "제1244회" in str(e.value.code) and "추첨 전" in str(e.value.code)

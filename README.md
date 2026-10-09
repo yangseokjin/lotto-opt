@@ -17,7 +17,7 @@ python3 cli.py run --config config/spread.yaml               # 분산 우선 50�
 python3 cli.py odds out/to_be_30sets_seed7.json              # 하나라도 맞을 정확한 확률
 python3 cli.py backtest --config config/to_be.yaml --config config/spread.yaml --draws 20   # 과거 회차로 검증
 ```
-- 당첨 확인: `python3 cli.py check out/to_be_30sets_seed7.json` (데이터의 최신 회차와 비교), `--draw 1244`(회차 지정), `--numbers 1,2,3,4,5,6 --bonus 7`(직접 입력), `--json`(프로그램에서 읽을 JSON). 세트별 일치 번호와 등수(1등 6개, 2등 5개+보너스, 3등 5개, 4등 4개, 5등 3개), 등수별 개수, 최고 등수를 보여 줍니다.
+- 당첨 확인: `python3 cli.py check out/to_be_30sets_seed7.json` (이 포트폴리오가 노린 회차, 즉 분석 마지막 회차의 다음 회차와 비교. 아직 추첨 전이면 그렇게 안내), `--draw 1244`(회차 지정), `--numbers 1,2,3,4,5,6 --bonus 7`(직접 입력), `--json`(프로그램에서 읽을 JSON). 세트별 일치 번호와 등수(1등 6개, 2등 5개+보너스, 3등 5개, 4등 4개, 5등 3개), 등수별 개수, 최고 등수를 보여 줍니다.
 - 당첨 확률: `run` 리포트 마지막과 `odds` 명령이 "30세트 중 하나라도 5등 이상일 확률"을 가능한 추첨 결과 8,145,060개를 모두 대입해 정확히 계산합니다 (약 4초).
 - 백테스트: `backtest` 는 최근 N회차마다 그 회차 직전 데이터만으로 포트폴리오를 새로 만들어 그 회차와 맞춰 보고, 무작위 세트와 비교합니다 (`--draws`, 회차당 수십 초). 함께 최근 `--groups` 회차의 Hot/Warm/Cold·이월수·장기 미출현 번호 적중률을 기대값과 비교합니다.
 - 결과는 `out/<프리셋>_<세트수>sets_seed<시드>.md`(리포트)와 `.json` 에 저장됩니다. 리포트 맨 위에 같은 결과를 다시 만드는 명령이 적혀 있습니다.
