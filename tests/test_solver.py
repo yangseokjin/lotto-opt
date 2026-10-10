@@ -37,3 +37,14 @@ def test_spec_sizes(draws, preset, sets):
     inter = [len(set(p) & set(q)) for p, q in itertools.combinations(out, 2)]
     assert max(inter) <= cfg["rules"]["overlap"]["max_common"]
     assert stages[0]["status"] == "OPTIMAL"  # 낮은 탐색량에서도 분포 오차가 피할 수 없는 최소치에 닿는다
+
+
+def test_display_order_is_seeded_shuffle():
+    from lotto_opt.solver import _display_order
+    sets = [(1, 2, 3, 4, 5, 6), (1, 7, 8, 9, 10, 11), (2, 3, 4, 5, 6, 7), (10, 20, 30, 40, 41, 42), (5, 6, 7, 8, 9, 10)]
+    cfg = {"portfolio": {"seed": 42}}
+    a = _display_order(sets, cfg)
+    assert sorted(a) == sorted(sets)                      # 세트 내용은 그대로
+    assert a == _display_order(list(reversed(sets)), cfg)  # 같은 시드면 같은 순서
+    orders = {tuple(_display_order(sets, {"portfolio": {"seed": s}})) for s in range(1, 20)}
+    assert len(orders) > 1                                # 시드가 바뀌면 순서도 바뀐다

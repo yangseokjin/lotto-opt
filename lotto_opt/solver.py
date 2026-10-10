@@ -226,6 +226,14 @@ def _solve_stages(cfg, a, log, effort=1.0):
     return cur, stages, "ok"
 
 
+def _display_order(sets, cfg):
+    """세트 순서는 의미가 없다. 오름차순으로 늘어놓으면 이월수 1번이 든 세트가 늘 01~04번에 몰려
+    '낮은 번호 위주'처럼 보이므로, 시드로 정해지는 순서로 섞는다 (같은 시드면 같은 순서)."""
+    out = sorted(tuple(s) for s in sets)
+    random.Random(f"{cfg['portfolio'].get('seed') or 0}:order").shuffle(out)
+    return out
+
+
 def run(cfg, draws, log=print, effort=1.0):
     """완화 목록을 순서대로 적용하며 해를 찾는다. (sets, analysis, 최종 cfg, 단계기록, 적용한 완화) 반환."""
     applied = []
@@ -239,6 +247,6 @@ def run(cfg, draws, log=print, effort=1.0):
         a = analyze(draws, cfg)
         sets, stages, status = _solve_stages(cfg, a, log, effort)
         if sets:
-            return sorted(sets), a, cfg, stages, applied
+            return _display_order(sets, cfg), a, cfg, stages, applied
         log(f"해 없음({status})")
     raise RuntimeError("모든 완화 단계를 적용해도 해를 찾지 못했습니다.")
